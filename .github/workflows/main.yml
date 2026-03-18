@@ -2,8 +2,8 @@ name: Data Collector Automation
 
 on:
   schedule:
-    - cron: '*/15 * * * *'  # Proti 15 minute por por cholbe
-  workflow_dispatch:        # Manual run option
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
 
 jobs:
   run-pipeline:
@@ -19,10 +19,12 @@ jobs:
           python-version: '3.10'
 
       - name: Install Libraries
-        run: pip install -r requirements.txt
+        # এখানে ফোল্ডারের নাম যোগ করা হয়েছে
+        run: pip install -r mirpur_data_collector/requirements.txt
 
       - name: Run Python Script
         env:
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
           TOMTOM_API_KEY: ${{ secrets.TOMTOM_API_KEY }}
-        run: python data_pipeline.py
+        # এখানেও ফোল্ডারের নাম যোগ করা হয়েছে
+        run: python mirpur_data_collector/data_pipeline.py
