@@ -3,7 +3,6 @@ import requests
 import json
 import time
 from datetime import datetime
-from supabase import create_client, Client
 
 # ==========================================
 # ⚙️ CONFIGURATION & API KEYS (NO HARDCODED SECRETS)
@@ -20,7 +19,18 @@ if not all([SUPABASE_URL, SUPABASE_KEY, TOMTOM_API_KEY]):
 LAT = 23.8067
 LON = 90.3687
 
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+def supabase_insert(table_name: str, payload: dict) -> None:
+    url = f"{SUPABASE_URL}/rest/v1/{table_name}"
+    headers = {
+        "apikey": SUPABASE_KEY,
+        "Authorization": f"Bearer {SUPABASE_KEY}",
+        "Content-Type": "application/json",
+        "Prefer": "return=minimal",
+    }
+    res = requests.post(url, json=payload, headers=headers, timeout=15)
+    if not res.ok:
+        raise RuntimeError(f"Supabase insert failed ({res.status_code}): {res.text}")
 
 # ==========================================
 # 🚦 FETCH REAL-TIME DATA
@@ -95,7 +105,7 @@ def collect_and_save():
     # Push to Supabase
     try:
         # Pushing to traffic_records as requested
-        response = supabase.table("traffic_records").insert(record).execute()
+        supabase_insert("traffic_records", record)
         print(f"✅ Successfully inserted 1 row. Speed: {speed}km/h, Rain: {rain_val}mm, Congestion: {round(congestion, 1)}%")
     except Exception as e:
         print(f"❌ Failed to push to Supabase: {e}")

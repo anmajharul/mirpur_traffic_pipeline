@@ -1,7 +1,6 @@
 import os
 import requests
 from datetime import datetime
-from supabase import create_client, Client
 
 # Supabase Project URL
 SUPABASE_URL = "https://rkousttmedthicfqybqe.supabase.co"
@@ -14,7 +13,17 @@ if not SUPABASE_KEY or not TOMTOM_API_KEY:
     print("❌ API Keys missing! GitHub Secrets e key add koro.")
     exit(1)
 
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+def supabase_insert(table_name: str, payload: dict) -> None:
+    url = f"{SUPABASE_URL}/rest/v1/{table_name}"
+    headers = {
+        "apikey": SUPABASE_KEY,
+        "Authorization": f"Bearer {SUPABASE_KEY}",
+        "Content-Type": "application/json",
+        "Prefer": "return=minimal",
+    }
+    res = requests.post(url, json=payload, headers=headers, timeout=15)
+    if not res.ok:
+        raise RuntimeError(f"Supabase insert failed ({res.status_code}): {res.text}")
 
 MIRPUR_LAT = 23.8067
 MIRPUR_LON = 90.3687
@@ -37,7 +46,7 @@ def fetch_and_save_weather():
                 "wind_speed": data["current_weather"]["windspeed"],
                 "rain_mm": data["hourly"]["rain"][0] if "hourly" in data else 0.0
             }
-            supabase.table("weather_data").insert(weather_data).execute()
+            supabase_insert("weather_data", weather_data)
             print("✅ Weather Data Saved!")
     except Exception as e:
         print(f"❌ Weather Error: {e}")
@@ -63,7 +72,7 @@ def fetch_and_save_traffic():
                         "speed_kmh": current_speed,
                         "congestion_percent": round(congestion, 1)
                     }
-                    supabase.table("traffic_records").insert(traffic_record).execute()
+                    supabase_insert("traffic_records", traffic_record)
                     print(f"✅ Traffic Saved for: {dest['name']}")
         except Exception as e:
             print(f"❌ Traffic Error ({dest['name']}): {e}")
