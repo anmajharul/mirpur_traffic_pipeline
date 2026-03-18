@@ -2,9 +2,9 @@ name: Groq ML Auto-Trainer
 
 on:
   schedule:
-    # Runs once a day at midnight (00:00 UTC) automatically
+    # প্রতিদিন রাত ১২টায় (UTC) অটোমেটিক রান হবে
     - cron: '0 0 * * *'
-  workflow_dispatch: # Allows manual run by clicking a button
+  workflow_dispatch: # ম্যানুয়ালি রান করার অপশন
 
 jobs:
   train:
@@ -24,4 +24,9 @@ jobs:
           pip install -r backend/requirements.txt
 
       - name: Run Auto Trainer Script
+        # এই env অংশটি যোগ করা খুবই জরুরি
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
         run: python backend/auto_trainer.py

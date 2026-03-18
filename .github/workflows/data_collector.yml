@@ -24,4 +24,9 @@ jobs:
           pip install -r backend/requirements.txt
 
       - name: Run Data Collector Script
+        # এই env ব্লকটাই তোমার কোডে মিসিং ছিল
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          TOMTOM_API_KEY: ${{ secrets.TOMTOM_API_KEY }}
         run: python backend/data_collector.py

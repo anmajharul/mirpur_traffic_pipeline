@@ -57,13 +57,13 @@ def fetch_and_save_traffic():
                     congestion = max(0, min(100, 100 - (current_speed / free_flow_speed) * 100))
                     travel_time_sec = int((2 / current_speed) * 3600) if current_speed > 0 else 999
                     
-                    traffic_data = {
+                    traffic_record = {
                         "destination": dest["name"],
                         "travel_time_sec": travel_time_sec,
                         "speed_kmh": current_speed,
                         "congestion_percent": round(congestion, 1)
                     }
-                    supabase.table("traffic_data").insert(traffic_data).execute()
+                    supabase.table("traffic_records").insert(traffic_record).execute()
                     print(f"✅ Traffic Saved for: {dest['name']}")
         except Exception as e:
             print(f"❌ Traffic Error ({dest['name']}): {e}")

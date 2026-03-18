@@ -6,18 +6,19 @@ from datetime import datetime
 from supabase import create_client, Client
 
 # ==========================================
-# ⚙️ CONFIGURATION & API KEYS
+# ⚙️ CONFIGURATION & API KEYS (NO HARDCODED SECRETS)
 # ==========================================
-# Get these from your Supabase Project Settings -> API
-SUPABASE_URL = os.getenv("SUPABASE_URL", "https://fojusiwszuetnibdgbze.supabase.co")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY", "sb_publishable_mUMIUt23GmSVnbHk_AzB8w_xzRQvjvv")
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+TOMTOM_API_KEY = os.getenv("TOMTOM_API_KEY")
 
-# APIs you already have
-TOMTOM_API_KEY = os.getenv("TOMTOM_API_KEY", "nQ4cIRr27XiPbXFQMmMQicsNa0hBOm8w")
+if not all([SUPABASE_URL, SUPABASE_KEY, TOMTOM_API_KEY]):
+    print("❌ API Keys missing! Make sure they are set in GitHub Secrets.")
+    exit(1)
 
-# Mirpur-10 Coordinates
-LAT = 23.8103
-LON = 90.4125
+# Mirpur-10 Coordinates (Matched with your previous data_pipeline.py)
+LAT = 23.8067
+LON = 90.3687
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
@@ -25,25 +26,36 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 # 🚦 FETCH REAL-TIME DATA
 # ==========================================
 def get_traffic_speed():
-    url = f"https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json?point={LAT},{LON}&unit=KMPH&key={TOMTOM_API_KEY}"
+    # Fixed URL format for TomTom API
+    url = f"https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json?point={LAT}%2C{LON}&key={TOMTOM_API_KEY}"
     try:
         res = requests.get(url)
-        data = res.json()
-        return data.get('flowSegmentData', {}).get('currentSpeed', None)
+        if res.status_code == 200:
+            data = res.json()
+            flow = data.get('flowSegmentData', {})
+            return {
+                'speed': flow.get('currentSpeed', None),
+                'freeFlowSpeed': flow.get('freeFlowSpeed', 50)
+            }
+        else:
+            print(f"TomTom API Error: {res.status_code}")
+            return None
     except Exception as e:
-        print(f"TomTom error: {e}")
+        print(f"TomTom exception: {e}")
         return None
 
 def get_weather():
-    url = f"https://api.open-meteo.com/v1/forecast?latitude={LAT}&longitude={LON}&current=temperature_2m,precipitation,weathercode"
+    url = f"https://api.open-meteo.com/v1/forecast?latitude={LAT}&longitude={LON}&current_weather=true&hourly=rain&timezone=Asia/Dhaka"
     try:
         res = requests.get(url)
-        data = res.json().get('current', {})
-        return {
-            'temp_c': data.get('temperature_2m', 0),
-            'rain_mm': data.get('precipitation', 0),
-            'code': data.get('weathercode', 0)
-        }
+        data = res.json()
+        if "current_weather" in data:
+            return {
+                'temp_c': data["current_weather"].get("temperature", 0),
+                'wind_speed': data["current_weather"].get("windspeed", 0),
+                'rain_mm': data["hourly"]["rain"][0] if "hourly" in data else 0.0
+            }
+        return None
     except Exception as e:
         print(f"Meteo error: {e}")
         return None
@@ -52,39 +64,39 @@ def get_weather():
 # 💾 SAVE TO DATABASE
 # ==========================================
 def collect_and_save():
-    print(f"[{datetime.now()}] Collecting Mirpur-10 ML Data...")
+    print(f"[{datetime.now().strftime('%H:%M:%S')}] Collecting Mirpur-10 ML Data...")
     
-    speed = get_traffic_speed()
+    traffic = get_traffic_speed()
     weather = get_weather()
     
-    if speed is None or weather is None:
+    if traffic is None or traffic['speed'] is None or weather is None:
         print("Failed to fetch APIs. Skipping this interval.")
         return
         
-    # Tell strict linters (like Pyre/MyPy) that these are definitely not None
-    assert isinstance(speed, (int, float))
-    assert isinstance(weather, dict)
+    speed = float(traffic['speed'])
+    free_flow_speed = float(traffic['freeFlowSpeed'])
+    
+    # Calculate congestion exactly like your previous script
+    congestion = max(0.0, min(100.0, 100.0 - (speed / free_flow_speed) * 100))
 
-    # Assuming a linear relationship for raw congestion metric (0-100 scale based on speed)
-    # A base speed of 40 km/h is 0% congestion. Speed of 5 km/h is ~80% congestion.
-    congestion = float(max(0.0, min(100.0, 100.0 - (float(speed) * 2.2))))
-
-    # Construct the data row
     rain_val = float(weather.get('rain_mm', 0.0))
     temp_val = float(weather.get('temp_c', 0.0))
     
     record = {
-        "timestamp": datetime.utcnow().isoformat(),  # Supabase uses UTC timestamps
-        "speed_kmh": float(speed),
-        "congestion_pct": float(f"{congestion:.2f}"),
+        # 'timestamp' column was changed to 'created_at' in the previous discussion
+        # Make sure your Supabase table has a 'created_at' column (timestamp with time zone)
+        "speed_kmh": speed,
+        "congestion_percent": round(congestion, 1),
         "rain_mm": rain_val,
-        "temp_c": temp_val
+        "temperature": temp_val,
+        "destination": "Mirpur-10 Node" # Added to match your previous schema
     }
     
     # Push to Supabase
     try:
+        # Pushing to traffic_records as requested
         response = supabase.table("traffic_records").insert(record).execute()
-        print(f"✅ Successfully inserted 1 row. Speed: {speed}km/h, Rain: {rain_val}mm")
+        print(f"✅ Successfully inserted 1 row. Speed: {speed}km/h, Rain: {rain_val}mm, Congestion: {round(congestion, 1)}%")
     except Exception as e:
         print(f"❌ Failed to push to Supabase: {e}")
 
@@ -92,5 +104,4 @@ def collect_and_save():
 # 🕒 ENTRY POINT
 # ==========================================
 if __name__ == "__main__":
-    # If deploying on a crontab / Heroku scheduler, just run collect_and_save()
     collect_and_save()
