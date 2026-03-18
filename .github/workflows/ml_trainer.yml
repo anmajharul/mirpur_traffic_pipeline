@@ -1,0 +1,27 @@
+name: Groq ML Auto-Trainer
+
+on:
+  schedule:
+    # Runs once a day at midnight (00:00 UTC) automatically
+    - cron: '0 0 * * *'
+  workflow_dispatch: # Allows manual run by clicking a button
+
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+
+      - name: Run Auto Trainer Script
+        run: python backend/auto_trainer.py
