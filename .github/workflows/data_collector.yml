@@ -3,11 +3,10 @@ name: 1. Traffic Data Collector
 on:
   push:
     branches:
-      - main  # তুমি কোড পুশ করার সাথে সাথেই এটা একবার অটো রান করবে
+      - main
   schedule:
-    # এরপর থেকে প্রতি ৬ ঘণ্টা পর পর অটোমেটিক চলবে (রাত ১২টা, সকাল ৬টা, দুপুর ১২টা, সন্ধ্যা ৬টা)
-    - cron: '0 */6 * * *'
-  workflow_dispatch: # ফিউচারে কখনো ম্যানুয়ালি টেস্ট করার দরকার হলে এই বাটনটা কাজে লাগবে
+    - cron: '0 */6 * * *' # প্রতি ৬ ঘণ্টা পর পর অটোমেটিক চলবে
+  workflow_dispatch: # ম্যানুয়ালি রান করার বাটন দিবে
 
 jobs:
   collect:
@@ -24,12 +23,11 @@ jobs:
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r backend/requirements.txt
+          pip install requests
 
       - name: Run Data Collector Script
-        # এই env ব্লকটি খুবই জরুরি, এটি ছাড়া পাইথন ফাইল সুপাবেস বা টমটমকে চিনতে পারবে না
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-          HERE_API_KEY: ${{ secrets.HERE_API_KEY }}}
+          HERE_API_KEY: ${{ secrets.HERE_API_KEY }}
         run: python backend/data_collector.py
