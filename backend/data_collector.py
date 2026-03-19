@@ -43,6 +43,7 @@ def get_weather():
                 }
     except Exception as e:
         print(f"⚠️ Weather API failed: {e}")
+    # 🚨 API ফেইল করলে এই সেফটি ভ্যালুগুলো যাবে, তাই কোনো NULL আসবে না
     return {"temp": 0, "wind": 0, "rain": 0.0}
 
 # ==========================================
@@ -117,7 +118,6 @@ def collect():
             free_flow_speed = 40.0
             congestion = max(0.0, min(100.0, 100.0 - (speed / free_flow_speed) * 100))
 
-            # 🚨 এখানে wind_speed অ্যাড করা হয়েছে
             record = {
                 "timestamp": now_db,
                 "speed_kmh": speed,
