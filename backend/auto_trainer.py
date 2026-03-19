@@ -24,7 +24,7 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 def train_model():
     print("⏳ Fetching historical data from Supabase...")
     
-    # 1. Get raw data (এখানে timestamp করে দেওয়া হয়েছে)
+    # 1. Get raw data
     response = supabase.table("traffic_records").select("*").order("timestamp", desc=True).limit(5000).execute()
     data = response.data
     
@@ -39,7 +39,6 @@ def train_model():
         if not direction:
             continue
             
-        # এখানেও timestamp করে দেওয়া হয়েছে
         time_field = row.get('timestamp')
         if not time_field:
             continue
@@ -89,9 +88,12 @@ def train_model():
             ]
         }
 
-        res = requests.post("https://api.com/openai/v1/chat/completions", headers=headers, json=payload)
-        # Note: I noticed the URL was missing 'api.groq.com' in the previous block if copied weirdly, making sure it's correct here.
-        res = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload)
+        try:
+            # 🚨 FIX: শুধু সঠিক Groq এন্ডপয়েন্ট রাখা হয়েছে
+            res = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload, timeout=30)
+        except Exception as e:
+            print(f"❌ Network error calling Groq for {direction}: {e}")
+            continue
         
         if res.status_code != 200:
             print(f"❌ Groq API failed for {direction}: {res.text}")
@@ -100,6 +102,7 @@ def train_model():
         groq_output = res.json()['choices'][0]['message']['content']
         
         try:
+            # LLM মাঝে মাঝে টেক্সট দিয়ে দেয়, তাই regex দিয়ে শুধু array টা বের করে আনছি
             arr_match = re.search(r'\[(.*?)\]', groq_output, re.DOTALL)
             if arr_match:
                 learned_weights = json.loads(f"[{arr_match.group(1)}]")
@@ -107,18 +110,19 @@ def train_model():
                 learned_weights = json.loads(groq_output.strip())
                 
             if len(learned_weights) == 24:
-                # 5. Save back to Supabase (Upsert using direction as primary key)
+                # 5. Save back to Supabase
                 payload_db = {
                     "direction": direction, 
                     "weights": learned_weights,
                 }
+                # সতর্কীকরণ: Supabase এ 'direction' কলামটি অবশ্যই Primary Key বা Unique হতে হবে, নাহলে upsert কাজ করবে না।
                 supabase.table("ml_weights").upsert(payload_db).execute()
                 print(f"✅ Weights saved for {direction}! Curve starts: {learned_weights[:3]}")
             else:
                 print(f"❌ Invalid array length for {direction}. Expected 24, got {len(learned_weights)}.")
                 
         except Exception as e:
-            print(f"❌ Failed to parse JSON for {direction}: {e}")
+            print(f"❌ Failed to parse JSON for {direction}: {e}\nRaw output: {groq_output}")
 
 if __name__ == "__main__":
     train_model()
