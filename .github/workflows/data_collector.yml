@@ -31,5 +31,5 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-          TOMTOM_API_KEY: ${{ secrets.TOMTOM_API_KEY }}
+          HERE_API_KEY: ${{ secrets.HERE_API_KEY }}}
         run: python backend/data_collector.py
