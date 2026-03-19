@@ -5,21 +5,23 @@ on:
     branches:
       - main
   schedule:
-    # প্রতি ৫ মিনিট পর পর ডেটা সংগ্রহ করবে (থিসিসের জন্য নিখুঁত গ্রাফ নিশ্চিত করতে)
+    # প্রতি ৫ মিনিট পর পর রান হবে (থিসিসের জন্য নিখুঁত গ্রাফ নিশ্চিত করতে)
     - cron: '*/5 * * * *' 
-  workflow_dispatch: # ম্যানুয়ালি টেস্ট করার জন্য
+  workflow_dispatch: # ম্যানুয়ালি রান করার জন্য
 
 jobs:
   collect:
     runs-on: ubuntu-latest
     
-    # রিপোজিটরিতে CSV ব্যাকআপ লেখার পারমিশন
+    # রিপোজিটরিতে নতুন ডেটা লেখার পারমিশন নিশ্চিত করা
     permissions:
       contents: write
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # পুরো হিস্ট্রি ফেচ করবে যাতে রিবেস করতে সুবিধা হয়
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -33,7 +35,6 @@ jobs:
 
       - name: Run Data Collector Script
         env:
-          # এই ৪টি সিক্রেট অবশ্যই GitHub Settings > Secrets এ থাকতে হবে
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
           HERE_API_KEY: ${{ secrets.HERE_API_KEY }}
@@ -51,6 +52,7 @@ jobs:
           # [skip ci] যোগ করা হয়েছে যাতে Vercel অকারণে বিল্ড না নেয়
           git commit -m "📊 Auto-update traffic backup: $(date) [skip ci]" || exit 0
           
-          # পুশ করার সময় কোনো কনফ্লিক্ট এড়াতে pull --rebase ব্যবহার করা নিরাপদ
-          git pull --rebase origin main
+          # কনফ্লিক্ট এড়াতে 'theirs' স্ট্র্যাটেজি ব্যবহার করা হয়েছে (বুলিটপ্রুফ ফিক্স)
+          git pull origin main --rebase -X theirs
+          
           git push origin main
