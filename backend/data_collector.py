@@ -14,7 +14,7 @@ if not all([SUPABASE_URL, SUPABASE_KEY, HERE_API_KEY]):
     print("❌ API Keys missing! Check GitHub Secrets.")
     exit(1)
 
-# মিরপুর-১০ এর ৪টি এপ্রোচ রোডের কোঅর্ডিনেট
+# মিরপুর-১০ এর ৪টি এপ্রোচ রোডের কোঅর্ডিনেট (Stable Points)
 LOCATIONS = [
     {"direction": "North (Mirpur-11)", "lat": "23.8115", "lon": "90.3686"},
     {"direction": "South (Kazipara)", "lat": "23.8035", "lon": "90.3686"},
@@ -22,15 +22,19 @@ LOCATIONS = [
     {"direction": "West (Mirpur-2)", "lat": "23.8071", "lon": "90.3636"}
 ]
 
+# ==========================================
+# 🛠️ CORE FUNCTIONS
+# ==========================================
+
 def get_traffic_speed_here(lat, lon):
-    # ls.hereapi.com সাধারণত গ্লোবাল ট্রাফিক সার্ভিসের জন্য বেশি স্ট্যাবল
+    # ls.hereapi.com সাব-ডোমেইনটি গ্লোবাল ট্রাফিক সার্ভিসের জন্য বেশি স্ট্যাবল
     url = "https://traffic.ls.hereapi.com/v8/flow"
     params = {
         "location": f"circle:{lat},{lon};r=100",
         "apiKey": HERE_API_KEY
     }
     
-    # DNS বা নেটওয়ার্ক এরর হ্যান্ডেল করার জন্য ২ বার ট্রাই করবে
+    # DNS বা নেটওয়ার্ক গ্লিচ হ্যান্ডেল করার জন্য ২ বার রিট্রাই করবে
     for attempt in range(2):
         try:
             res = requests.get(url, params=params, timeout=20)
@@ -44,7 +48,7 @@ def get_traffic_speed_here(lat, lon):
                 print(f"⚠️ Attempt {attempt+1}: API Error {res.status_code}")
         except Exception as e:
             print(f"⚠️ Attempt {attempt+1} failed: DNS/Network Error. Retrying in 5s...")
-            time.sleep(5) # ৫ সেকেন্ড অপেক্ষা করবে
+            time.sleep(5)
             
     return None
 
@@ -57,9 +61,16 @@ def supabase_insert(payload):
         "Prefer": "return=minimal",
     }
     try:
-        requests.post(url, json=payload, headers=headers, timeout=15)
-    except:
-        print("❌ Failed to push to Supabase.")
+        # তোমার রিকোয়েস্ট করা এরর হ্যান্ডলিং লজিক এখানে
+        res = requests.post(url, json=payload, headers=headers, timeout=15)
+        if not res.ok:
+            print(f"❌ Supabase Error: {res.status_code} - {res.text}")
+    except Exception as e:
+        print(f"❌ DB Connection Error: {e}")
+
+# ==========================================
+# 💾 EXECUTION LOGIC
+# ==========================================
 
 def collect():
     print(f"🚀 Starting collection with HERE Maps: {datetime.now().strftime('%H:%M:%S')}")
@@ -68,6 +79,7 @@ def collect():
     
     for loc in LOCATIONS:
         speed = get_traffic_speed_here(loc['lat'], loc['lon'])
+        
         if speed is not None:
             record = {
                 "speed_kmh": speed,
@@ -75,11 +87,12 @@ def collect():
                 "destination": "Mirpur-10 Circle",
                 "timestamp": now_iso
             }
+            # সুপাবেসে ডেটা পাঠানো
             supabase_insert(record)
-            print(f"✅ {loc['direction']}: {speed} km/h (Saved)")
+            print(f"✅ {loc['direction']}: {speed} km/h (Processed)")
             success_count += 1
             
-    print(f"📊 Summary: {success_count}/4 locations saved to Supabase.")
+    print(f"📊 Summary: {success_count}/4 locations processed.")
 
 if __name__ == "__main__":
     collect()
