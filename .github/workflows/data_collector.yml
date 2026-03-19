@@ -5,12 +5,18 @@ on:
     branches:
       - main
   schedule:
-    - cron: '0 */6 * * *' # প্রতি ৬ ঘণ্টা পর পর অটোমেটিক চলবে
-  workflow_dispatch: # ম্যানুয়ালি রান করার বাটন দিবে
+    # তোমার থিসিসের জন্য ২৪ ঘণ্টার পূর্ণাঙ্গ প্রোফাইল দরকার, তাই ১ ঘণ্টা পর পর রান করাই বেস্ট
+    - cron: '0 * * * *' 
+  workflow_dispatch: # ম্যানুয়ালি রান করার জন্য 'Run workflow' বাটন দিবে
 
 jobs:
   collect:
     runs-on: ubuntu-latest
+    
+    # এটি গিটহাব অ্যাকশনকে তোমার রিপোজিটরিতে নতুন ডেটা লেখার পারমিশন দিবে
+    permissions:
+      contents: write
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -27,7 +33,19 @@ jobs:
 
       - name: Run Data Collector Script
         env:
+          # এই ৪টি সিক্রেট অবশ্যই GitHub Settings > Secrets এ থাকতে হবে
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
           HERE_API_KEY: ${{ secrets.HERE_API_KEY }}
+          WEATHER_API_KEY: ${{ secrets.WEATHER_API_KEY }}
         run: python backend/data_collector.py
+
+      - name: Commit and Push CSV Backup
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          # শুধু CSV ফাইলটি অ্যাড করবে
+          git add backend/traffic_data_backup.csv
+          # যদি নতুন কোনো ডেটা যোগ না হয় তবে এরর দিবে না
+          git commit -m "📊 Auto-update traffic backup: $(date)" || exit 0
+          git push

@@ -1,0 +1,1 @@
+timestamp,direction,speed_kmh,congestion_percent,destination,temperature,rain_mm,wind_speed,wind_dir,visibility_km,uv_index,weather_condition,aqi,pm2_5,pm10,co_level,no2_level,sunrise,sunset,moon_phase
