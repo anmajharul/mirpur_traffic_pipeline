@@ -15,7 +15,7 @@ WEATHER_API_KEY = os.getenv("WEATHER_API_KEY")
 # মিরপুর-১০ গোলচত্বর (Destination)
 CENTER = "23.8071318,90.3686089"
 
-# কালেকশন পয়েন্টসমূহ
+# কালেকশন পয়েন্টসমূহ
 LOCATIONS = [
     {"direction": "North (Mirpur-11)", "coord": "23.8115,90.3686"},
     {"direction": "South (Kazipara)", "coord": "23.8035,90.3686"},
@@ -23,10 +23,11 @@ LOCATIONS = [
     {"direction": "West (Mirpur-2)", "coord": "23.8071,90.3636"},
 ]
 
+# Session reuse for 5-min intervals performance
 session = requests.Session()
 
 # ==========================================
-# 📁 CSV BACKUP UTILITY (Unlimited Storage Logic)
+# 📁 CSV BACKUP UTILITY (Academic Standard)
 # ==========================================
 def save_to_csv(record):
     """রেকর্ডটি GitHub রিপোজিটরির CSV ফাইলে অ্যাপেন্ড করবে"""
@@ -34,9 +35,9 @@ def save_to_csv(record):
     file_exists = os.path.isfile(file_path)
     
     try:
-        with open(file_path, 'a', newline='', encoding='utf-8') as f:
+        # utf-8-sig ব্যবহার করা হয়েছে যাতে Excel এ ফাইলটি ঠিকমতো ওপেন হয়
+        with open(file_path, 'a', newline='', encoding='utf-8-sig') as f:
             writer = csv.DictWriter(f, fieldnames=record.keys())
-            # যদি ফাইলটি একদম নতুন হয়, তবে হেডার লিখে দিবে
             if not file_exists or os.stat(file_path).st_size == 0:
                 writer.writeheader()
             writer.writerow(record)
@@ -53,14 +54,17 @@ def get_comprehensive_weather():
     astro_url = f"https://api.weatherapi.com/v1/astronomy.json?key={WEATHER_API_KEY}&q={coords}"
     
     try:
-        curr_res = session.get(current_url, timeout=12)
+        curr_res = session.get(current_url, timeout=10)
         curr_res.raise_for_status()
-        astro_res = session.get(astro_url, timeout=12)
+        astro_res = session.get(astro_url, timeout=10)
         astro_res.raise_for_status()
 
-        curr = curr_res.json()['current']
-        air = curr['air_quality']
-        astro = astro_res.json()['astronomy']['astro']
+        curr_data = curr_res.json()
+        astro_data = astro_res.json()
+
+        curr = curr_data.get('current', {})
+        air = curr.get('air_quality', {})
+        astro = astro_data.get('astronomy', {}).get('astro', {})
 
         return {
             "temp_c": curr.get('temp_c'),
@@ -70,7 +74,7 @@ def get_comprehensive_weather():
             "humidity": curr.get('humidity'),
             "visibility_km": curr.get('vis_km'),
             "uv_index": curr.get('uv'),
-            "weather_condition": curr['condition'].get('text'),
+            "weather_condition": curr.get('condition', {}).get('text', "Unknown"),
             "aqi": air.get('us-epa-index'),
             "pm2_5": air.get('pm2_5'),
             "pm10": air.get('pm10'),
@@ -98,15 +102,15 @@ def get_traffic_speed(origin):
         "apiKey": HERE_API_KEY
     }
     try:
-        res = session.get(url, params=params, timeout=15)
+        res = session.get(url, params=params, timeout=12)
         if res.status_code == 200:
             data = res.json()
-            sections = data.get("routes", [{}])[0].get("sections", [{}])
-            summary = sections[0].get("summary", {})
-            duration = summary.get("duration", 0)
-            length = summary.get("length", 0)
-            if duration > 0:
-                return round((length / duration) * 3.6, 2)
+            if data.get("routes"):
+                summary = data["routes"][0]["sections"][0].get("summary", {})
+                duration = summary.get("duration", 0)
+                length = summary.get("length", 0)
+                if duration > 0:
+                    return round((length / duration) * 3.6, 2)
     except Exception as e:
         print(f"⚠️ Traffic API error: {e}")
     return None
@@ -127,7 +131,7 @@ def supabase_insert(payload):
         if res.ok:
             print(f"✅ Supabase updated for {payload['direction']}")
         else:
-            print(f"❌ DB Error: {res.status_code}")
+            print(f"❌ DB Error {res.status_code}: {res.text}")
     except Exception as e:
         print(f"❌ DB Connection Error: {e}")
 
@@ -137,6 +141,8 @@ def supabase_insert(payload):
 def collect():
     print(f"🚀 Starting collection: {datetime.now().strftime('%H:%M:%S')}")
     weather = get_comprehensive_weather()
+    w_data = weather if weather else {} # Weather না থাকলে empty dict যাতে KeyError না হয়
+    
     # সবার জন্য একই টাইমস্ট্যাম্প নিশ্চিত করা
     now_db = datetime.now(timezone.utc).isoformat()
     
@@ -146,37 +152,36 @@ def collect():
             # ৪০ কিমি/ঘণ্টা ফ্রি-ফ্লো স্পিড ধরে কনজেশন ক্যালকুলেশন
             congestion = max(0.0, min(100.0, 100.0 - (speed / 40.0) * 100))
             
-            # ডেটাবেস কলাম অনুযায়ী ম্যাপিং
             record = {
                 "timestamp": now_db,
                 "direction": loc["direction"],
                 "speed_kmh": speed,
                 "congestion_percent": round(congestion, 1),
                 "destination": "Mirpur-10 Circle",
-                "temperature": weather.get('temp_c') if weather else 0,
-                "rain_mm": weather.get('precip_mm') if weather else 0,
-                "wind_speed": weather.get('wind_kph') if weather else 0,
-                "wind_dir": weather.get('wind_dir') if weather else None,
-                "visibility_km": weather.get('visibility_km') if weather else None,
-                "uv_index": weather.get('uv_index') if weather else None,
-                "weather_condition": weather.get('weather_condition') if weather else "Clear",
-                "aqi": weather.get('aqi') if weather else None,
-                "pm2_5": weather.get('pm2_5') if weather else None,
-                "pm10": weather.get('pm10') if weather else None,
-                "co_level": weather.get('co_level') if weather else None,
-                "no2_level": weather.get('no2_level') if weather else None,
-                "sunrise": weather.get('sunrise') if weather else None,
-                "sunset": weather.get('sunset') if weather else None,
-                "moon_phase": weather.get('moon_phase') if weather else None
+                "temperature": w_data.get('temp_c'), # Default None (Academic Standard)
+                "rain_mm": w_data.get('precip_mm'),
+                "wind_speed": w_data.get('wind_kph'),
+                "wind_dir": w_data.get('wind_dir'),
+                "visibility_km": w_data.get('visibility_km'),
+                "uv_index": w_data.get('uv_index'),
+                "weather_condition": w_data.get('weather_condition', "Unknown"),
+                "aqi": w_data.get('aqi'),
+                "pm2_5": w_data.get('pm2_5'),
+                "pm10": w_data.get('pm10'),
+                "co_level": w_data.get('co_level'),
+                "no2_level": w_data.get('no2_level'),
+                "sunrise": w_data.get('sunrise'),
+                "sunset": w_data.get('sunset'),
+                "moon_phase": w_data.get('moon_phase')
             }
             
-            # ১. সুপাবেসে পুশ করা (লাইভ গ্রাফের জন্য)
+            # ১. সুপাবেসে পুশ করা
             supabase_insert(record)
             
-            # ২. সিএসভিতে সেভ করা (থিসিসের আজীবন ব্যাকআপের জন্য)
+            # ২. সিএসভিতে সেভ করা
             save_to_csv(record)
             
-        time.sleep(1) # এপিআই ওভারলোড প্রোটেকশন
+        time.sleep(1.5) # Anti-throttle delay for stable 5-min runs
 
 if __name__ == "__main__":
     collect()
