@@ -43,7 +43,6 @@ def get_weather():
                 }
     except Exception as e:
         print(f"⚠️ Weather API failed: {e}")
-    # ফেইল করলে ডিফল্ট ভ্যালু পাঠাবে যেন কোড ক্র্যাশ না করে
     return {"temp": 0, "wind": 0, "rain": 0.0}
 
 # ==========================================
@@ -110,30 +109,28 @@ def collect():
     now_db = datetime.now().isoformat()
     success = 0
 
-    # একবার ওয়েদার কল করব
     weather = get_weather()
 
     for loc in LOCATIONS:
         speed = get_traffic_speed(loc["coord"])
         if speed is not None:
-            # কনজেশন লজিক: মিরপুরের ফ্রি স্পিড ৪০ কিমি/ঘণ্টা ধরলে জ্যাম কত?
-            # স্পিড যত কম, জ্যাম তত বেশি (০-১০০ স্কেলে)
             free_flow_speed = 40.0
             congestion = max(0.0, min(100.0, 100.0 - (speed / free_flow_speed) * 100))
 
+            # 🚨 এখানে wind_speed অ্যাড করা হয়েছে
             record = {
                 "timestamp": now_db,
                 "speed_kmh": speed,
                 "congestion_percent": round(congestion, 1),
                 "rain_mm": weather["rain"],
                 "temperature": weather["temp"],
+                "wind_speed": weather["wind"], 
                 "direction": loc["direction"],
                 "destination": "Mirpur-10 Circle"
             }
-            # যদি তোমার ডাটাবেসে wind_speed কলাম থাকে, তাহলে উপরের ডিকশনারিতে "wind_speed": weather["wind"] যোগ করে দিও।
             
             supabase_insert(record)
-            print(f"✅ {loc['direction']}: Speed {speed} km/h | Congestion {round(congestion)}% | Temp {weather['temp']}C")
+            print(f"✅ {loc['direction']}: Speed {speed} km/h | Wind {weather['wind']} km/h")
             success += 1
         time.sleep(1)
 
