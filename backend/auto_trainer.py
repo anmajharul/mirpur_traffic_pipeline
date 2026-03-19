@@ -1,7 +1,7 @@
 ﻿import os
 import json
 import requests
-import time # 🚨 নতুন অ্যাড করা হয়েছে
+import time
 from supabase import create_client, Client
 from datetime import datetime
 import re
@@ -79,18 +79,34 @@ def train_model():
             ]
         }
 
-        try:
-            res = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload, timeout=30)
-        except Exception as e:
-            print(f"❌ Network error calling Groq for {direction}: {e}")
-            continue
+        # 🚨 ADVANCED RETRY LOGIC FOR RATE LIMITS
+        success = False
+        groq_output = ""
         
-        if res.status_code != 200:
-            print(f"❌ Groq API failed for {direction}: {res.text}")
-            continue
-            
-        groq_output = res.json()['choices'][0]['message']['content']
+        for attempt in range(3): # সর্বোচ্চ ৩ বার চেষ্টা করবে
+            try:
+                res = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload, timeout=40)
+                
+                if res.status_code == 200:
+                    groq_output = res.json()['choices'][0]['message']['content']
+                    success = True
+                    break # সফল হলে লুপ থেকে বের হয়ে যাবে
+                elif res.status_code == 429: # 429 মানে Rate Limit
+                    print(f"⚠️ Groq Rate Limit hit for {direction} (Attempt {attempt+1}/3). Waiting 30 seconds...")
+                    time.sleep(30) # লিমিট খেলে ৩০ সেকেন্ড অপেক্ষা করে আবার ট্রাই করবে
+                else:
+                    print(f"❌ Groq API Error {res.status_code} for {direction}: {res.text}")
+                    break # অন্য কোনো এরর হলে স্কিপ করবে
+                    
+            except Exception as e:
+                print(f"❌ Network error for {direction}: {e}")
+                time.sleep(10)
+
+        if not success:
+            print(f"⏭️ Skipping {direction} after 3 failed attempts.")
+            continue # ৩ বার ফেইল করলে পরের ডিরেকশনে যাবে
         
+        # ডাটা প্রসেসিং ও সুপাবেস ইনসার্ট
         try:
             arr_match = re.search(r'\[(.*?)\]', groq_output, re.DOTALL)
             if arr_match:
@@ -108,9 +124,9 @@ def train_model():
         except Exception as e:
             print(f"❌ Failed to parse JSON for {direction}. Raw output: {groq_output}")
 
-        # 🚨 রেট লিমিট এড়ানোর জন্য ১০ সেকেন্ডের ব্রেক
-        print("⏳ Waiting 10 seconds before next AI request to avoid rate limits...")
-        time.sleep(10)
+        # সাধারণ ব্রেক (পরের ডিরেকশনে যাওয়ার আগে)
+        print("⏳ Waiting 20 seconds before next AI request to respect Free Tier limits...")
+        time.sleep(20)
 
 if __name__ == "__main__":
     train_model()
