@@ -4,62 +4,82 @@ import time
 from datetime import datetime
 
 # ==========================================
-# ⚙️ CONFIGURATION & API KEYS
+# 🔑 API KEYS FROM ENV (GitHub Secrets)
 # ==========================================
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 HERE_API_KEY = os.getenv("HERE_API_KEY", "").strip()
 
 if not all([SUPABASE_URL, SUPABASE_KEY, HERE_API_KEY]):
-    print("❌ API Keys missing! Check GitHub Secrets.")
+    print("❌ Missing API keys! Check GitHub Secrets.")
     exit(1)
 
-# মিরপুর-১০ এর ৪টি মেইন পয়েন্ট (North, South, East, West)
+# মিরপুর-১০ গোলচত্বর (Destination)
+CENTER = "23.8071318,90.3686089"
+
+# ৪টি এপ্রোচ রোড থেকে গোলচত্বরের দিকে আসা
 LOCATIONS = [
-    {"direction": "North (Mirpur-11)", "lat": "23.8115", "lon": "90.3686"},
-    {"direction": "South (Kazipara)", "lat": "23.8035", "lon": "90.3686"},
-    {"direction": "East (Mirpur-14)", "lat": "23.8071", "lon": "90.3736"},
-    {"direction": "West (Mirpur-2)", "lat": "23.8071", "lon": "90.3636"}
+    {"direction": "North (Mirpur-11)", "coord": "23.8115,90.3686"},
+    {"direction": "South (Kazipara)", "coord": "23.8035,90.3686"},
+    {"direction": "East (Mirpur-14)", "coord": "23.8071,90.3736"},
+    {"direction": "West (Mirpur-2)", "coord": "23.8071,90.3636"},
 ]
 
-# ==========================================
-# 🚦 CORE LOGIC
-# ==========================================
+session = requests.Session()
 
-def get_weather():
-    # আবহাওয়ার ডেটা (Open-Meteo API)
-    url = "https://api.open-meteo.com/v1/forecast?latitude=23.8071&longitude=90.3686&current_weather=true&hourly=rain"
-    try:
-        res = requests.get(url, timeout=10)
-        data = res.json()
-        if "current_weather" in data:
-            return {
-                "temp": data["current_weather"].get("temperature", 25),
-                "wind": data["current_weather"].get("windspeed", 5),
-                "rain": data.get("hourly", {}).get("rain", [0])[0]
-            }
-    except: return {"temp": 25, "wind": 5, "rain": 0}
-
-def get_traffic_speed_here(lat, lon):
-    url = "https://traffic.hereapi.com/v8/flow"
-    # ব্যাসার্ধ ৫০০ মিটার করা হলো যাতে ম্যাপের সেগমেন্ট মিস না হয়
+# ==========================================
+# 🚗 GET TRAFFIC SPEED FROM HERE ROUTING API
+# ==========================================
+def get_traffic_speed(origin):
+    url = "https://router.hereapi.com/v8/routes"
     params = {
-        "location": f"circle:{lat},{lon};r=500", 
-        "apiKey": HERE_API_KEY
+        "transportMode": "car",
+        "origin": origin,
+        "destination": CENTER,
+        "return": "summary",
+        "routingMode": "fast",
+        "departureTime": "now", # রিয়েল-টাইম ট্রাফিক নিশ্চিত করতে
+        "apikey": HERE_API_KEY
     }
-    try:
-        res = requests.get(url, params=params, timeout=20)
-        data = res.json()
-        if "results" in data and len(data["results"]) > 0:
-            speed = data["results"][0].get("currentFlow", {}).get("speed", 0)
-            return round(float(speed), 2)
-        else:
-            print(f"⚠️ No summary data for {lat},{lon}. It might be a data gap in HERE Maps.")
-            return 0
-    except Exception as e:
-        print(f"❌ API Call failed: {e}")
-        return None
 
+    for attempt in range(3):
+        try:
+            res = session.get(url, params=params, timeout=25)
+            if res.status_code != 200:
+                print(f"⚠️ API Error {res.status_code} for {origin}")
+                time.sleep(3)
+                continue
+
+            data = res.json()
+            routes = data.get("routes", [])
+            
+            if not routes:
+                print(f"⚠️ No route found for {origin}")
+                return None
+
+            # সেফলি সামারি ডেটা বের করা
+            sections = routes[0].get("sections", [])
+            summary = sections[0].get("summary", {}) if sections else {}
+            
+            duration = summary.get("duration", 0) # সেকেন্ডে
+            length = summary.get("length", 0)     # মিটারে
+
+            if duration > 0:
+                # মিটার/সেকেন্ড থেকে কিমি/ঘণ্টায় রূপান্তর
+                speed_kmh = (length / duration) * 3.6
+                return round(speed_kmh, 2)
+            
+            return 0
+
+        except Exception as e:
+            print(f"⚠️ Network error on attempt {attempt+1}: {e}")
+            time.sleep(5)
+
+    return None
+
+# ==========================================
+# 🗄️ INSERT INTO SUPABASE
+# ==========================================
 def supabase_insert(payload):
     url = f"{SUPABASE_URL}/rest/v1/traffic_records"
     headers = {
@@ -69,37 +89,43 @@ def supabase_insert(payload):
         "Prefer": "return=minimal",
     }
     try:
-        res = requests.post(url, json=payload, headers=headers, timeout=15)
+        res = session.post(url, json=payload, headers=headers, timeout=20)
         if not res.ok:
-            print(f"❌ Supabase Error: {res.text}")
-    except:
-        print("❌ DB Push Failed.")
+            print(f"❌ Supabase Error: {res.status_code} — {res.text}")
+    except Exception as e:
+        print(f"❌ DB Connection Error: {e}")
 
+# ==========================================
+# 🧠 MAIN COLLECTION LOGIC
+# ==========================================
 def collect():
-    print(f"🚀 Starting Collection: {datetime.now().strftime('%H:%M:%S')}")
-    weather = get_weather()
-    now_iso = datetime.now().isoformat()
-    success_count = 0
+    print(f"🚀 Starting collection: {datetime.now().strftime('%H:%M:%S')}")
     
+    # ISO 8601 ফরম্যাটে বর্তমান সময়
+    now_iso = datetime.now().isoformat()
+    success = 0
+
     for loc in LOCATIONS:
-        speed = get_traffic_speed_here(loc['lat'], loc['lon'])
+        speed = get_traffic_speed(loc["coord"])
+
+        if speed is None:
+            print(f"⚠️ Skipped {loc['direction']} due to API issues.")
+            continue
+
+        record = {
+            "speed_kmh": speed,
+            "direction": loc["direction"],
+            "destination": "Mirpur-10 Circle",
+            "timestamp": now_iso
+        }
+
+        supabase_insert(record)
+        print(f"✅ {loc['direction']}: {speed} km/h")
         
-        if speed is not None:
-            # তোমার ডাটাবেসের সব কলাম এখানে সেট করা হয়েছে
-            record = {
-                "timestamp": now_iso,
-                "speed_kmh": speed,
-                "direction": loc['direction'],
-                "temperature": weather["temp"],
-                "wind_speed": weather["wind"],
-                "rain_mm": weather["rain"],
-                "destination": "Mirpur-10 Circle"
-            }
-            supabase_insert(record)
-            print(f"✅ {loc['direction']}: {speed} km/h (Saved to DB)")
-            success_count += 1
-            
-    print(f"📊 Summary: {success_count}/4 saved to Supabase.")
+        success += 1
+        time.sleep(1) # API লিমিট এড়াতে ছোট বিরতি
+
+    print(f"📊 Summary: {success}/4 locations successfully processed.")
 
 if __name__ == "__main__":
     collect()
