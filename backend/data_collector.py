@@ -13,17 +13,17 @@ if not all([SUPABASE_URL, SUPABASE_KEY, TOMTOM_API_KEY]):
     print("❌ API Keys missing in GitHub Secrets!")
     exit(1)
 
-# মিরপুর-১০ গোলচত্বরের ৪টি এপ্রোচ রোড (রাস্তার ওপরের বিন্দু)
+# মিরপুর-১০ গোলচত্বর থেকে ২০০ মিটার দূরের ৪টি পয়েন্ট (More stable for TomTom)
 LOCATIONS = [
-    {"direction": "North (Mirpur-11 Road)", "lat": "23.8078", "lon": "90.3686"},
-    {"direction": "South (Kazipara Road)", "lat": "23.8064", "lon": "90.3686"},
-    {"direction": "East (Mirpur-14 Road)", "lat": "23.8071", "lon": "90.3694"},
-    {"direction": "West (Mirpur-2 Road)", "lat": "23.8071", "lon": "90.3678"}
+    {"direction": "North (Towards Mirpur-11)", "lat": "23.8102", "lon": "90.3686"},
+    {"direction": "South (Towards Kazipara)", "lat": "23.8045", "lon": "90.3686"},
+    {"direction": "East (Towards Mirpur-14)", "lat": "23.8071", "lon": "90.3721"},
+    {"direction": "West (Towards Mirpur-2)", "lat": "23.8071", "lon": "90.3652"}
 ]
 
 def get_traffic_speed(lat, lon):
-    # জুম লেভেল ১৮ রাস্তার নিখুঁত সেগমেন্ট পাওয়ার জন্য সেরা
-    url = "https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/18/json"
+    # Zoom level 10 ব্যবহার করা হচ্ছে যাতে বড় রোড সেগমেন্ট সহজে ডিটেক্ট হয়
+    url = f"https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json"
     params = {
         "point": f"{lat},{lon}",
         "key": TOMTOM_API_KEY
@@ -38,6 +38,7 @@ def get_traffic_speed(lat, lon):
                 'freeFlowSpeed': flow.get('freeFlowSpeed', 50)
             }
         else:
+            # ডিবাগিং এর জন্য এরর টেক্সট প্রিন্ট করা হচ্ছে
             print(f"⚠️ API Error {res.status_code} at {lat},{lon}: {res.text}")
             return None
     except Exception as e:
@@ -70,14 +71,14 @@ def collect():
             record = {
                 "speed_kmh": speed,
                 "direction": loc['direction'],
-                "destination": "Mirpur-10 Circle",
+                "destination": "Mirpur-10 Area",
                 "timestamp": datetime.now().isoformat()
             }
             supabase_insert(record)
             print(f"✅ {loc['direction']}: {speed} km/h")
             success_count += 1
     
-    print(f"📊 Finished. {success_count}/4 locations saved.")
+    print(f"📊 Finished. {success_count}/4 locations saved to Supabase.")
 
 if __name__ == "__main__":
     collect()
