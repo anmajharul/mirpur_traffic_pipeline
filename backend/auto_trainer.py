@@ -1,6 +1,7 @@
 ﻿import os
 import json
 import requests
+import time # 🚨 নতুন অ্যাড করা হয়েছে
 from supabase import create_client, Client
 from datetime import datetime
 import re
@@ -24,7 +25,6 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 def train_model():
     print("⏳ Fetching historical data from Supabase...")
     
-    # 1. Get raw data
     response = supabase.table("traffic_records").select("*").order("timestamp", desc=True).limit(5000).execute()
     data = response.data
     
@@ -32,45 +32,36 @@ def train_model():
         print("❌ No data found in Supabase (traffic_records table).")
         return
 
-    # 2. Separate data by direction
     directions_data = {}
     for row in data:
         direction = row.get('direction')
-        if not direction:
-            continue
-            
         time_field = row.get('timestamp')
-        if not time_field:
-            continue
+        if not direction or not time_field: continue
             
         try:
             time_obj = datetime.fromisoformat(time_field.replace('Z', '+00:00'))
             hour = time_obj.hour
             
-            if direction not in directions_data:
-                directions_data[direction] = {}
-            if hour not in directions_data[direction]:
-                directions_data[direction][hour] = {"sum": 0, "count": 0}
+            if direction not in directions_data: directions_data[direction] = {}
+            if hour not in directions_data[direction]: directions_data[direction][hour] = {"sum": 0, "count": 0}
             
             directions_data[direction][hour]["sum"] += row['speed_kmh']
             directions_data[direction][hour]["count"] += 1
-        except Exception as e:
+        except Exception:
             continue
 
     if not directions_data:
         print("❌ Failed to process directional hourly data.")
         return
 
-    # 3. Process each direction separately
     for direction, hourly_cal in directions_data.items():
         hist_str = ""
         for h in sorted(hourly_cal.keys()):
             avg_speed = round(hourly_cal[h]["sum"] / hourly_cal[h]["count"], 2)
             hist_str += f"Hour {h}: {avg_speed} km/h\n"
             
-        print(f"🧠 Training AI for: {direction}...")
+        print(f"\n🧠 Training AI for: {direction}...")
 
-        # 4. Call Groq API
         sys_instruction = f"You are an ML model analyzing traffic for {direction} at Mirpur-10, Dhaka. Output ONLY a raw JSON array of exactly 24 numbers. These numbers represent the optimal predicted speed (km/h) for hours 0 to 23 based on the historical data. Smooth the curve. NO MARKDOWN, NO TEXT."
         prompt = f"Historical Data for {direction}:\n{hist_str}\nGenerate the 24-element array."
 
@@ -89,7 +80,6 @@ def train_model():
         }
 
         try:
-            # 🚨 FIX: শুধু সঠিক Groq এন্ডপয়েন্ট রাখা হয়েছে
             res = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload, timeout=30)
         except Exception as e:
             print(f"❌ Network error calling Groq for {direction}: {e}")
@@ -102,7 +92,6 @@ def train_model():
         groq_output = res.json()['choices'][0]['message']['content']
         
         try:
-            # LLM মাঝে মাঝে টেক্সট দিয়ে দেয়, তাই regex দিয়ে শুধু array টা বের করে আনছি
             arr_match = re.search(r'\[(.*?)\]', groq_output, re.DOTALL)
             if arr_match:
                 learned_weights = json.loads(f"[{arr_match.group(1)}]")
@@ -110,19 +99,18 @@ def train_model():
                 learned_weights = json.loads(groq_output.strip())
                 
             if len(learned_weights) == 24:
-                # 5. Save back to Supabase
-                payload_db = {
-                    "direction": direction, 
-                    "weights": learned_weights,
-                }
-                # সতর্কীকরণ: Supabase এ 'direction' কলামটি অবশ্যই Primary Key বা Unique হতে হবে, নাহলে upsert কাজ করবে না।
+                payload_db = {"direction": direction, "weights": learned_weights}
                 supabase.table("ml_weights").upsert(payload_db).execute()
-                print(f"✅ Weights saved for {direction}! Curve starts: {learned_weights[:3]}")
+                print(f"✅ Weights saved for {direction}!")
             else:
                 print(f"❌ Invalid array length for {direction}. Expected 24, got {len(learned_weights)}.")
                 
         except Exception as e:
-            print(f"❌ Failed to parse JSON for {direction}: {e}\nRaw output: {groq_output}")
+            print(f"❌ Failed to parse JSON for {direction}. Raw output: {groq_output}")
+
+        # 🚨 রেট লিমিট এড়ানোর জন্য ১০ সেকেন্ডের ব্রেক
+        print("⏳ Waiting 10 seconds before next AI request to avoid rate limits...")
+        time.sleep(10)
 
 if __name__ == "__main__":
     train_model()
