@@ -24,8 +24,8 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 def train_model():
     print("⏳ Fetching historical data from Supabase...")
     
-    # 1. Get raw data
-    response = supabase.table("traffic_records").select("*").order("created_at", desc=True).limit(5000).execute()
+    # 1. Get raw data (এখানে timestamp করে দেওয়া হয়েছে)
+    response = supabase.table("traffic_records").select("*").order("timestamp", desc=True).limit(5000).execute()
     data = response.data
     
     if not data:
@@ -39,7 +39,8 @@ def train_model():
         if not direction:
             continue
             
-        time_field = row.get('created_at')
+        # এখানেও timestamp করে দেওয়া হয়েছে
+        time_field = row.get('timestamp')
         if not time_field:
             continue
             
@@ -88,6 +89,8 @@ def train_model():
             ]
         }
 
+        res = requests.post("https://api.com/openai/v1/chat/completions", headers=headers, json=payload)
+        # Note: I noticed the URL was missing 'api.groq.com' in the previous block if copied weirdly, making sure it's correct here.
         res = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload)
         
         if res.status_code != 200:
