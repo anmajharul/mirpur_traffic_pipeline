@@ -1,10 +1,13 @@
-name: Mirpur-10 Traffic Data Collector
+name: 1. Traffic Data Collector
 
 on:
+  push:
+    branches:
+      - main  # তুমি কোড পুশ করার সাথে সাথেই এটা একবার অটো রান করবে
   schedule:
-    # Runs every 15 minutes automatically
-    - cron: '*/15 * * * *'
-  workflow_dispatch: # Allows manual run by clicking a button
+    # এরপর থেকে প্রতি ৬ ঘণ্টা পর পর অটোমেটিক চলবে (রাত ১২টা, সকাল ৬টা, দুপুর ১২টা, সন্ধ্যা ৬টা)
+    - cron: '0 */6 * * *'
+  workflow_dispatch: # ফিউচারে কখনো ম্যানুয়ালি টেস্ট করার দরকার হলে এই বাটনটা কাজে লাগবে
 
 jobs:
   collect:
@@ -24,7 +27,7 @@ jobs:
           pip install -r backend/requirements.txt
 
       - name: Run Data Collector Script
-        # এই env ব্লকটাই তোমার কোডে মিসিং ছিল
+        # এই env ব্লকটি খুবই জরুরি, এটি ছাড়া পাইথন ফাইল সুপাবেস বা টমটমকে চিনতে পারবে না
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}

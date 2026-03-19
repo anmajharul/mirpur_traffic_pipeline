@@ -21,7 +21,7 @@ LOCATIONS = [
     {"direction": "West (Mirpur-2)", "lat": "23.8071", "lon": "90.3636"}
 ]
 
-# গোলচত্বরের সেন্টার (শুধু আবহাওয়ার জন্য)
+# গোলচত্বরের সেন্টার (শুধু আবহাওয়ার জন্য)
 CENTER_LAT = "23.8071"
 CENTER_LON = "90.3686"
 
@@ -66,6 +66,7 @@ def get_weather():
         if "current_weather" in data:
             return {
                 'temp_c': data["current_weather"].get("temperature", 0),
+                'wind_speed': data["current_weather"].get("windspeed", 0), # বাতাসের গতিবেগ
                 'rain_mm': data["hourly"]["rain"][0] if "hourly" in data else 0.0
             }
         return None
@@ -79,10 +80,11 @@ def get_weather():
 def collect_and_save():
     print(f"[{datetime.now().strftime('%H:%M:%S')}] Collecting Mirpur-10 Multi-Directional Data...")
     
-    # আবহাওয়া একবারই নেব
+    # আবহাওয়া একবারই নেব
     weather = get_weather()
     rain_val = float(weather.get('rain_mm', 0.0)) if weather else 0.0
     temp_val = float(weather.get('temp_c', 0.0)) if weather else 0.0
+    wind_val = float(weather.get('wind_speed', 0.0)) if weather else 0.0 # ভ্যারিয়েবল সেট করা হলো
 
     # ৪ দিকের জন্য লুপ
     for loc in LOCATIONS:
@@ -101,13 +103,14 @@ def collect_and_save():
             "congestion_percent": round(congestion, 1),
             "rain_mm": rain_val,
             "temperature": temp_val,
+            "wind_speed": wind_val,  # ডাটাবেসে পাঠানো হচ্ছে
             "destination": "Mirpur-10 Node",
-            "direction": loc['direction']  # নতুন কলাম
+            "direction": loc['direction']
         }
         
         try:
             supabase_insert("traffic_records", record)
-            print(f"✅ {loc['direction']}: Speed: {speed}km/h, Congestion: {round(congestion, 1)}%")
+            print(f"✅ {loc['direction']}: Speed: {speed}km/h, Congestion: {round(congestion, 1)}%, Wind: {wind_val}km/h")
         except Exception as e:
             print(f"❌ Failed to push {loc['direction']} to Supabase: {e}")
 
