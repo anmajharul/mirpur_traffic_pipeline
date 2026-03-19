@@ -1,7 +1,7 @@
 import os
 import requests
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 
 # ==========================================
 # 🔑 API KEYS FROM ENV (GitHub Secrets)
@@ -17,7 +17,6 @@ if not all([SUPABASE_URL, SUPABASE_KEY, HERE_API_KEY]):
 # মিরপুর-১০ গোলচত্বর (Destination)
 CENTER = "23.8071318,90.3686089"
 
-# ৪টি এপ্রোচ রোড থেকে গোলচত্বরের দিকে আসা
 LOCATIONS = [
     {"direction": "North (Mirpur-11)", "coord": "23.8115,90.3686"},
     {"direction": "South (Kazipara)", "coord": "23.8035,90.3686"},
@@ -27,59 +26,45 @@ LOCATIONS = [
 
 session = requests.Session()
 
-# ==========================================
-# 🚗 GET TRAFFIC SPEED FROM HERE ROUTING API
-# ==========================================
 def get_traffic_speed(origin):
     url = "https://router.hereapi.com/v8/routes"
+    
+    # HERE v8 এর জন্য সঠিক ISO ফরম্যাট তৈরি করা
+    now_iso = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+    
     params = {
         "transportMode": "car",
         "origin": origin,
         "destination": CENTER,
         "return": "summary",
         "routingMode": "fast",
-        "departureTime": "now", # রিয়েল-টাইম ট্রাফিক নিশ্চিত করতে
-        "apikey": HERE_API_KEY
+        "departureTime": now_iso, # "now" এর বদলে প্রপার টাইমস্ট্যাম্প
+        "apiKey": HERE_API_KEY   # 'k' বড় হাতের হতে হবে অনেক সময়
     }
 
     for attempt in range(3):
         try:
             res = session.get(url, params=params, timeout=25)
-            if res.status_code != 200:
-                print(f"⚠️ API Error {res.status_code} for {origin}")
+            if res.status_code == 200:
+                data = res.json()
+                routes = data.get("routes", [])
+                if routes:
+                    summary = routes[0].get("sections", [{}])[0].get("summary", {})
+                    duration = summary.get("duration", 0)
+                    length = summary.get("length", 0)
+                    if duration > 0:
+                        speed_kmh = (length / duration) * 3.6
+                        return round(speed_kmh, 2)
+                return 0
+            else:
+                # এরর কেন আসছে তা বোঝার জন্য ডিটেইল প্রিন্ট করা
+                print(f"⚠️ API Error {res.status_code} for {origin}: {res.text}")
                 time.sleep(3)
-                continue
-
-            data = res.json()
-            routes = data.get("routes", [])
-            
-            if not routes:
-                print(f"⚠️ No route found for {origin}")
-                return None
-
-            # সেফলি সামারি ডেটা বের করা
-            sections = routes[0].get("sections", [])
-            summary = sections[0].get("summary", {}) if sections else {}
-            
-            duration = summary.get("duration", 0) # সেকেন্ডে
-            length = summary.get("length", 0)     # মিটারে
-
-            if duration > 0:
-                # মিটার/সেকেন্ড থেকে কিমি/ঘণ্টায় রূপান্তর
-                speed_kmh = (length / duration) * 3.6
-                return round(speed_kmh, 2)
-            
-            return 0
-
         except Exception as e:
-            print(f"⚠️ Network error on attempt {attempt+1}: {e}")
+            print(f"⚠️ Attempt {attempt+1} failed: {e}")
             time.sleep(5)
-
     return None
 
-# ==========================================
-# 🗄️ INSERT INTO SUPABASE
-# ==========================================
 def supabase_insert(payload):
     url = f"{SUPABASE_URL}/rest/v1/traffic_records"
     headers = {
@@ -95,37 +80,26 @@ def supabase_insert(payload):
     except Exception as e:
         print(f"❌ DB Connection Error: {e}")
 
-# ==========================================
-# 🧠 MAIN COLLECTION LOGIC
-# ==========================================
 def collect():
     print(f"🚀 Starting collection: {datetime.now().strftime('%H:%M:%S')}")
-    
-    # ISO 8601 ফরম্যাটে বর্তমান সময়
-    now_iso = datetime.now().isoformat()
+    now_db = datetime.now().isoformat()
     success = 0
 
     for loc in LOCATIONS:
         speed = get_traffic_speed(loc["coord"])
+        if speed is not None:
+            record = {
+                "speed_kmh": speed,
+                "direction": loc["direction"],
+                "destination": "Mirpur-10 Circle",
+                "timestamp": now_db
+            }
+            supabase_insert(record)
+            print(f"✅ {loc['direction']}: {speed} km/h")
+            success += 1
+        time.sleep(1)
 
-        if speed is None:
-            print(f"⚠️ Skipped {loc['direction']} due to API issues.")
-            continue
-
-        record = {
-            "speed_kmh": speed,
-            "direction": loc["direction"],
-            "destination": "Mirpur-10 Circle",
-            "timestamp": now_iso
-        }
-
-        supabase_insert(record)
-        print(f"✅ {loc['direction']}: {speed} km/h")
-        
-        success += 1
-        time.sleep(1) # API লিমিট এড়াতে ছোট বিরতি
-
-    print(f"📊 Summary: {success}/4 locations successfully processed.")
+    print(f"📊 Summary: {success}/4 processed.")
 
 if __name__ == "__main__":
     collect()
