@@ -13,7 +13,7 @@ if not all([SUPABASE_URL, SUPABASE_KEY, TOMTOM_API_KEY]):
     print("❌ API Keys missing! Make sure they are set in GitHub Secrets.")
     exit(1)
 
-# মিরপুর-১০ এর চারদিকের এপ্রোচ লেগ (Coordinates for North, South, East, West)
+# মিরপুর-১০ এর চারদিকের এপ্রোচ লেগ
 LOCATIONS = [
     {"direction": "North (Mirpur-11)", "lat": "23.8115", "lon": "90.3686"},
     {"direction": "South (Kazipara)", "lat": "23.8035", "lon": "90.3686"},
@@ -44,9 +44,18 @@ def supabase_insert(table_name: str, payload: dict) -> None:
         print(f"❌ Network error while pushing to Supabase: {e}")
 
 def get_traffic_speed(lat, lon):
-    url = f"https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json?point={lat}%2C{lon}&key={TOMTOM_API_KEY}"
+    # জুম লেভেল ১৮ ব্যবহার করা হচ্ছে মিরপুরের রাস্তার সুনির্দিষ্ট ডেটা পেতে
+    url = "https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/18/json"
+    
+    # params ব্যবহার করলে requests লাইব্রেরি নিজে থেকেই কমা (,) এনকোড করবে
+    params = {
+        "point": f"{lat},{lon}",
+        "key": TOMTOM_API_KEY,
+        "thickness": 10
+    }
+    
     try:
-        res = requests.get(url, timeout=10)
+        res = requests.get(url, params=params, timeout=10)
         if res.status_code == 200:
             data = res.json()
             flow = data.get('flowSegmentData', {})
@@ -55,14 +64,14 @@ def get_traffic_speed(lat, lon):
                 'freeFlowSpeed': flow.get('freeFlowSpeed', 50)
             }
         else:
-            print(f"TomTom API Error at {lat},{lon}: {res.status_code}")
+            # এখানে এরর কোডসহ বিস্তারিত প্রিন্ট হবে ডিবাগিং এর সুবিধার জন্য
+            print(f"⚠️ TomTom API Error at {lat},{lon}: {res.status_code}")
             return None
     except Exception as e:
-        print(f"TomTom exception: {e}")
+        print(f"❌ TomTom exception: {e}")
         return None
 
 def get_weather():
-    # Open-Meteo API for real-time weather data
     url = f"https://api.open-meteo.com/v1/forecast?latitude={CENTER_LAT}&longitude={CENTER_LON}&current_weather=true&hourly=rain&timezone=Asia/Dhaka"
     try:
         res = requests.get(url, timeout=10)
@@ -75,24 +84,21 @@ def get_weather():
             }
         return None
     except Exception as e:
-        print(f"Meteo error: {e}")
+        print(f"❌ Meteo error: {e}")
         return None
 
 # ==========================================
 # 💾 MAIN DATA COLLECTION LOGIC
 # ==========================================
 def collect_and_save():
-    # বর্তমান সময় (ISO format এ সুপাবেস সহজে বুঝে নেয়)
     now_iso = datetime.now().isoformat()
-    print(f"[{datetime.now().strftime('%H:%M:%S')}] Starting Collection...")
+    print(f"[{datetime.now().strftime('%H:%M:%S')}] Starting Multi-Directional Collection...")
     
-    # আবহাওয়া একবারই নেব (যেহেতু ৪টি পয়েন্টই কাছাকাছি)
     weather = get_weather()
     rain_val = float(weather.get('rain_mm', 0.0)) if weather else 0.0
     temp_val = float(weather.get('temp_c', 0.0)) if weather else 0.0
     wind_val = float(weather.get('wind_speed', 0.0)) if weather else 0.0
 
-    # ৪টি ডিরেকশনের জন্য ডেটা কালেক্ট করা
     for loc in LOCATIONS:
         traffic = get_traffic_speed(loc['lat'], loc['lon'])
         
@@ -102,11 +108,10 @@ def collect_and_save():
             
         speed = float(traffic['speed'])
         free_flow_speed = float(traffic['freeFlowSpeed'])
-        # Congestion % calculation: 0 is empty, higher is jammed
         congestion = max(0.0, min(100.0, 100.0 - (speed / free_flow_speed) * 100))
         
         record = {
-            "timestamp": now_iso, # এখানে timestamp পাঠানো হচ্ছে যাতে DB তেcreated_at এর সাথে ঝামেলা না হয়
+            "timestamp": now_iso,
             "speed_kmh": speed,
             "congestion_percent": round(congestion, 1),
             "rain_mm": rain_val,
@@ -116,9 +121,8 @@ def collect_and_save():
             "direction": loc['direction']
         }
         
-        # সুপাবেসে পুশ করা
         supabase_insert("traffic_records", record)
-        print(f"✅ {loc['direction']}: Speed: {speed}km/h | Wind: {wind_val}km/h | Saved!")
+        print(f"✅ {loc['direction']}: Speed: {speed}km/h | Saved to DB!")
 
 if __name__ == "__main__":
     collect_and_save()
