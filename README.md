@@ -142,3 +142,18 @@ Update `CENTER` and `LOCATIONS` in `backend/data_collector.py` to collect data f
 - CSV backup file: `backend/traffic_data_backup.csv`
 - `auto_trainer.py` expects a raw 24‑element JSON array from Groq. If output includes extra text, parsing will fail.
 
+
+# Author
+
+Majharul Islam  
+Civil Engineering Student  
+Bangladesh University of Business and Technology (BUBT)
+
+Research Focus:
+Transportation Engineering  
+Travel Behavior Analysis  
+Discrete Choice Modeling
+
+[![Portfolio](https://img.shields.io/badge/Website-anmajharul.bd-blue?style=for-the-badge&logo=googlechrome)](https://anmajharul.bd) 
+
+© Majharul Islam – Research Portfolio
