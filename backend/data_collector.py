@@ -14,7 +14,7 @@ if not all([SUPABASE_URL, SUPABASE_KEY, HERE_API_KEY]):
     print("❌ Missing API keys! Check GitHub Secrets.")
     exit(1)
 
-# মিরপুর-১০ গোলচত্বর (Destination)
+# মিরপুর-১০ গোলচত্বর
 CENTER = "23.8071318,90.3686089"
 
 LOCATIONS = [
@@ -26,10 +26,31 @@ LOCATIONS = [
 
 session = requests.Session()
 
+# ==========================================
+# 🌤️ GET WEATHER DATA (Open-Meteo)
+# ==========================================
+def get_weather():
+    url = "https://api.open-meteo.com/v1/forecast?latitude=23.8071&longitude=90.3686&current_weather=true&hourly=rain"
+    try:
+        res = session.get(url, timeout=10)
+        if res.status_code == 200:
+            data = res.json()
+            if "current_weather" in data:
+                return {
+                    "temp": data["current_weather"].get("temperature", 0),
+                    "wind": data["current_weather"].get("windspeed", 0),
+                    "rain": data.get("hourly", {}).get("rain", [0.0])[0]
+                }
+    except Exception as e:
+        print(f"⚠️ Weather API failed: {e}")
+    # ফেইল করলে ডিফল্ট ভ্যালু পাঠাবে যেন কোড ক্র্যাশ না করে
+    return {"temp": 0, "wind": 0, "rain": 0.0}
+
+# ==========================================
+# 🚗 GET TRAFFIC SPEED
+# ==========================================
 def get_traffic_speed(origin):
     url = "https://router.hereapi.com/v8/routes"
-    
-    # HERE v8 এর জন্য সঠিক ISO ফরম্যাট তৈরি করা
     now_iso = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
     
     params = {
@@ -38,8 +59,8 @@ def get_traffic_speed(origin):
         "destination": CENTER,
         "return": "summary",
         "routingMode": "fast",
-        "departureTime": now_iso, # "now" এর বদলে প্রপার টাইমস্ট্যাম্প
-        "apiKey": HERE_API_KEY   # 'k' বড় হাতের হতে হবে অনেক সময়
+        "departureTime": now_iso,
+        "apiKey": HERE_API_KEY
     }
 
     for attempt in range(3):
@@ -57,14 +78,15 @@ def get_traffic_speed(origin):
                         return round(speed_kmh, 2)
                 return 0
             else:
-                # এরর কেন আসছে তা বোঝার জন্য ডিটেইল প্রিন্ট করা
-                print(f"⚠️ API Error {res.status_code} for {origin}: {res.text}")
+                print(f"⚠️ API Error {res.status_code} for {origin}")
                 time.sleep(3)
         except Exception as e:
-            print(f"⚠️ Attempt {attempt+1} failed: {e}")
             time.sleep(5)
     return None
 
+# ==========================================
+# 🗄️ INSERT INTO SUPABASE
+# ==========================================
 def supabase_insert(payload):
     url = f"{SUPABASE_URL}/rest/v1/traffic_records"
     headers = {
@@ -80,22 +102,38 @@ def supabase_insert(payload):
     except Exception as e:
         print(f"❌ DB Connection Error: {e}")
 
+# ==========================================
+# 🧠 MAIN COLLECTION LOGIC
+# ==========================================
 def collect():
     print(f"🚀 Starting collection: {datetime.now().strftime('%H:%M:%S')}")
     now_db = datetime.now().isoformat()
     success = 0
 
+    # একবার ওয়েদার কল করব
+    weather = get_weather()
+
     for loc in LOCATIONS:
         speed = get_traffic_speed(loc["coord"])
         if speed is not None:
+            # কনজেশন লজিক: মিরপুরের ফ্রি স্পিড ৪০ কিমি/ঘণ্টা ধরলে জ্যাম কত?
+            # স্পিড যত কম, জ্যাম তত বেশি (০-১০০ স্কেলে)
+            free_flow_speed = 40.0
+            congestion = max(0.0, min(100.0, 100.0 - (speed / free_flow_speed) * 100))
+
             record = {
+                "timestamp": now_db,
                 "speed_kmh": speed,
+                "congestion_percent": round(congestion, 1),
+                "rain_mm": weather["rain"],
+                "temperature": weather["temp"],
                 "direction": loc["direction"],
-                "destination": "Mirpur-10 Circle",
-                "timestamp": now_db
+                "destination": "Mirpur-10 Circle"
             }
+            # যদি তোমার ডাটাবেসে wind_speed কলাম থাকে, তাহলে উপরের ডিকশনারিতে "wind_speed": weather["wind"] যোগ করে দিও।
+            
             supabase_insert(record)
-            print(f"✅ {loc['direction']}: {speed} km/h")
+            print(f"✅ {loc['direction']}: Speed {speed} km/h | Congestion {round(congestion)}% | Temp {weather['temp']}C")
             success += 1
         time.sleep(1)
 
