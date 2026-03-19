@@ -62,8 +62,14 @@ def train_model():
             
         print(f"\n🧠 Training AI for: {direction}...")
 
-        sys_instruction = f"You are an ML model analyzing traffic for {direction} at Mirpur-10, Dhaka. Output ONLY a raw JSON array of exactly 24 numbers. These numbers represent the optimal predicted speed (km/h) for hours 0 to 23 based on the historical data. Smooth the curve. NO MARKDOWN, NO TEXT."
-        prompt = f"Historical Data for {direction}:\n{hist_str}\nGenerate the 24-element array."
+        # 🚨 STRICT PROMPT ENGINEERING FOR EXACTLY 24 ELEMENTS
+        sys_instruction = f"""You are an ML model analyzing traffic for {direction} at Mirpur-10, Dhaka. 
+        CRITICAL INSTRUCTION: You MUST output a raw JSON array containing EXACTLY 24 numbers. 
+        These numbers represent the predicted speed (km/h) for every hour from Hour 0 to Hour 23.
+        DO NOT skip any hour. Count them to ensure there are exactly 24 elements before outputting.
+        NO MARKDOWN, NO TEXT. JUST THE ARRAY."""
+        
+        prompt = f"Historical Data for {direction}:\n{hist_str}\nProvide EXACTLY 24 numbers in a flat JSON array format like [25.5, 26.1, ...]."
 
         headers = {
             "Authorization": f"Bearer {GROQ_API_KEY}",
@@ -90,7 +96,7 @@ def train_model():
                 if res.status_code == 200:
                     groq_output = res.json()['choices'][0]['message']['content']
                     success = True
-                    break # সফল হলে লুপ থেকে বের হয়ে যাবে
+                    break # সফল হলে লুপ থেকে বের হয়ে যাবে
                 elif res.status_code == 429: # 429 মানে Rate Limit
                     print(f"⚠️ Groq Rate Limit hit for {direction} (Attempt {attempt+1}/3). Waiting 30 seconds...")
                     time.sleep(30) # লিমিট খেলে ৩০ সেকেন্ড অপেক্ষা করে আবার ট্রাই করবে
@@ -124,7 +130,7 @@ def train_model():
         except Exception as e:
             print(f"❌ Failed to parse JSON for {direction}. Raw output: {groq_output}")
 
-        # সাধারণ ব্রেক (পরের ডিরেকশনে যাওয়ার আগে)
+        # সাধারণ ব্রেক (পরের ডিরেকশনে যাওয়ার আগে)
         print("⏳ Waiting 20 seconds before next AI request to respect Free Tier limits...")
         time.sleep(20)
 
