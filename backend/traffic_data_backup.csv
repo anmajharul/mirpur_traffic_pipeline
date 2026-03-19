@@ -18,3 +18,7 @@ timestamp,direction,speed_kmh,congestion_percent,destination,temperature,rain_mm
 2026-03-19T17:54:37.451568+00:00,South (Kazipara),25.67,35.8,Mirpur-10 Circle,23.1,0.08,23.8,SSE,10.0,0.0,Patchy rain nearby,2,39.85,45.35,757.85,35.45,06:04 AM,06:09 PM,New Moon
 2026-03-19T17:54:37.451568+00:00,East (Mirpur-14),37.18,7.0,Mirpur-10 Circle,23.1,0.08,23.8,SSE,10.0,0.0,Patchy rain nearby,2,39.85,45.35,757.85,35.45,06:04 AM,06:09 PM,New Moon
 2026-03-19T17:54:37.451568+00:00,West (Mirpur-2),34.57,13.6,Mirpur-10 Circle,23.1,0.08,23.8,SSE,10.0,0.0,Patchy rain nearby,2,39.85,45.35,757.85,35.45,06:04 AM,06:09 PM,New Moon
+2026-03-19T19:07:21.171572+00:00,North (Mirpur-11),31.61,21.0,Mirpur-10 Circle,23.9,0.0,11.9,SW,10.0,0.0,Clear,4,76.75,81.65,815.85,53.35,06:04 AM,06:09 PM,New Moon
+2026-03-19T19:07:21.171572+00:00,South (Kazipara),25.67,35.8,Mirpur-10 Circle,23.9,0.0,11.9,SW,10.0,0.0,Clear,4,76.75,81.65,815.85,53.35,06:04 AM,06:09 PM,New Moon
+2026-03-19T19:07:21.171572+00:00,East (Mirpur-14),37.18,7.0,Mirpur-10 Circle,23.9,0.0,11.9,SW,10.0,0.0,Clear,4,76.75,81.65,815.85,53.35,06:04 AM,06:09 PM,New Moon
+2026-03-19T19:07:21.171572+00:00,West (Mirpur-2),34.57,13.6,Mirpur-10 Circle,23.9,0.0,11.9,SW,10.0,0.0,Clear,4,76.75,81.65,815.85,53.35,06:04 AM,06:09 PM,New Moon
