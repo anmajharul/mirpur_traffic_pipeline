@@ -5,71 +5,156 @@ import csv
 from datetime import datetime, timezone
 
 # ==========================================
-# 🔑 API KEYS & CONFIG
+# 🔑 API KEYS & CONFIG (GitHub Secrets)
 # ==========================================
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 HERE_API_KEY = os.getenv("HERE_API_KEY", "").strip()
 WEATHER_API_KEY = os.getenv("WEATHER_API_KEY")
 
+# মিরপুর-১০ গোলচত্বর (Geometric Center)
 CENTER_COORDS = "23.807128,90.368799"
 
+# কালেকশন পেয়ার (Inner: Intersection, Outer: 350m Back)
 LOCATION_PAIRS = [
     {"direction": "North (Mirpur-11)", "inner": "23.807271,90.368554", "outer": "23.810272,90.368799"},
     {"direction": "South (Kazipara)", "inner": "23.806895,90.368611", "outer": "23.803984,90.368799"},
-    # মিরপুর-১৪ এর নতুন কোঅর্ডিনেট (এপিআই ফ্রেন্ডলি)
+    # মিরপুর-১৪ এর রি-অ্যাডজাস্ট করা কোঅর্ডিনেট (এপিআই ফ্রেন্ডলি)
     {"direction": "East (Mirpur-14)", "inner": "23.807150,90.369300", "outer": "23.807150,90.372500"},
     {"direction": "West (Mirpur-2)", "inner": "23.807025,90.368412", "outer": "23.807128,90.365363"}
 ]
 
 session = requests.Session()
 
+# ==========================================
+# 📊 SEVERITY CALCULATOR
+# ==========================================
 def calculate_severity(inner_speed, outer_speed):
-    if inner_speed < 10 and outer_speed < 10: return "Critical (Queue > 350m)", 3
-    elif inner_speed < 12 or outer_speed < 12: return "Moderate (Bottleneck)", 2
-    elif inner_speed > 25 and outer_speed > 25: return "Free Flow", 0
-    else: return "Normal Traffic", 1
+    """ইনার এবং আউটার স্পিড তুলনা করে জ্যামের ভয়াবহতা নির্ণয়"""
+    if inner_speed < 10 and outer_speed < 10:
+        return "Critical (Queue > 350m)", 3
+    elif inner_speed < 12 or outer_speed < 12:
+        return "Moderate (Bottleneck)", 2
+    elif inner_speed > 25 and outer_speed > 25:
+        return "Free Flow", 0
+    else:
+        return "Normal Traffic", 1
 
+# ==========================================
+# 📁 CSV BACKUP UTILITY (Academic Standard)
+# ==========================================
+def save_to_csv(record):
+    file_path = 'backend/traffic_data_backup.csv'
+    file_exists = os.path.isfile(file_path)
+    try:
+        with open(file_path, 'a', newline='', encoding='utf-8-sig') as f:
+            writer = csv.DictWriter(f, fieldnames=record.keys())
+            if not file_exists or os.stat(file_path).st_size == 0:
+                writer.writeheader()
+            writer.writerow(record)
+    except Exception as e:
+        print(f"⚠️ CSV backup failed: {e}")
+
+# ==========================================
+# 🌤️ WEATHER, AQI & ASTRONOMY FETCH
+# ==========================================
 def get_comprehensive_weather():
     coords = "23.807,90.368"
-    url = f"https://api.weatherapi.com/v1/current.json?key={WEATHER_API_KEY}&q={coords}&aqi=yes"
-    astro_url = f"https://api.weatherapi.com/v1/astronomy.json?key={WEATHER_API_KEY}&q={coords}"
+    c_url = f"https://api.weatherapi.com/v1/current.json?key={WEATHER_API_KEY}&q={coords}&aqi=yes"
+    a_url = f"https://api.weatherapi.com/v1/astronomy.json?key={WEATHER_API_KEY}&q={coords}"
     try:
-        w_res = session.get(url, timeout=10).json()
-        a_res = session.get(astro_url, timeout=10).json()
-        curr = w_res.get('current', {})
+        curr_res = session.get(c_url, timeout=10).json()
+        astro_res = session.get(a_url, timeout=10).json()
+        
+        curr = curr_res.get('current', {})
         air = curr.get('air_quality', {})
-        astro = a_res.get('astronomy', {}).get('astro', {})
+        astro = astro_res.get('astronomy', {}).get('astro', {})
+        
         return {
-            "temp": curr.get('temp_c'), "precip": curr.get('precip_mm'),
-            "w_spd": curr.get('wind_kph'), "w_dir": curr.get('wind_dir'),
-            "vis": curr.get('vis_km'), "uv": curr.get('uv'),
+            "temp": curr.get('temp_c'),
+            "precip": curr.get('precip_mm'),
+            "w_spd": curr.get('wind_kph'),
+            "w_dir": curr.get('wind_dir'),
+            "vis": curr.get('vis_km'),
+            "uv": curr.get('uv'),
             "cond": curr.get('condition', {}).get('text', "Unknown"),
-            "aqi": air.get('us-epa-index'), "pm25": air.get('pm2_5'),
-            "pm10": air.get('pm10'), "co": air.get('co'), "no2": air.get('no2'),
-            "rise": astro.get('sunrise'), "set": astro.get('sunset'), "moon": astro.get('moon_phase')
+            "aqi": air.get('us-epa-index'),
+            "pm25": air.get('pm2_5'),
+            "pm10": air.get('pm10'),
+            "co": air.get('co'),
+            "no2": air.get('no2'),
+            "rise": astro.get('sunrise'),
+            "set": astro.get('sunset'),
+            "moon": astro.get('moon_phase')
         }
-    except: return {}
+    except Exception:
+        return {}
 
-def get_speed(origin):
+# ==========================================
+# 🚗 TRAFFIC SPEED FETCH (HERE API)
+# ==========================================
+def get_traffic_speed(origin):
     url = "https://router.hereapi.com/v8/routes"
-    params = {"transportMode": "car", "origin": origin, "destination": CENTER_COORDS, "return": "summary", "apiKey": HERE_API_KEY}
+    params = {
+        "transportMode": "car",
+        "origin": origin,
+        "destination": CENTER_COORDS,
+        "return": "summary",
+        "routingMode": "fast",
+        "apiKey": HERE_API_KEY
+    }
     try:
         res = session.get(url, params=params, timeout=12).json()
-        summary = res['routes'][0]['sections'][0].get('summary', {})
-        return round((summary.get('length', 0) / summary.get('duration', 1)) * 3.6, 2)
-    except: return None
+        if 'routes' in res and len(res['routes']) > 0:
+            summary = res['routes'][0]['sections'][0].get('summary', {})
+            duration = summary.get('duration', 0)
+            length = summary.get('length', 0)
+            if duration > 0:
+                return round((length / duration) * 3.6, 2)
+    except Exception:
+        pass
+    return None
 
+# ==========================================
+# 🗄️ SUPABASE INSERT
+# ==========================================
+def supabase_insert(payload):
+    url = f"{SUPABASE_URL}/rest/v1/traffic_records"
+    headers = {
+        "apikey": SUPABASE_KEY,
+        "Authorization": f"Bearer {SUPABASE_KEY}",
+        "Content-Type": "application/json",
+        "Prefer": "return=minimal",
+    }
+    try:
+        res = session.post(url, json=payload, headers=headers, timeout=15)
+        if res.ok:
+            print(f"✅ Supabase: {payload['direction']} Updated")
+        else:
+            print(f"❌ DB Error: {res.status_code}")
+    except Exception as e:
+        print(f"❌ DB Connection Error: {e}")
+
+# ==========================================
+# 🧠 MAIN COLLECTION LOGIC
+# ==========================================
 def collect():
+    print(f"🚀 Data Collection Started: {datetime.now().strftime('%H:%M:%S')}")
     weather = get_comprehensive_weather()
     now_db = datetime.now(timezone.utc).isoformat()
+    
     for pair in LOCATION_PAIRS:
-        i_speed = get_speed(pair["inner"])
-        o_speed = get_speed(pair["outer"])
+        i_speed = get_traffic_speed(pair["inner"])
+        o_speed = get_traffic_speed(pair["outer"])
+        
         if i_speed is not None and o_speed is not None:
+            # ভয়াবহতা লজিক
             status_text, status_idx = calculate_severity(i_speed, o_speed)
+            
+            # জ্যামের শতাংশ (৪০ কিমি/ঘণ্টাকে ফ্রি-ফ্লো ধরে)
             cong_pct = max(0.0, min(100.0, 100.0 - (i_speed / 40.0) * 100))
             
+            # তোমার সুপাবেস স্ক্রিনশটের হুবহু কলাম অর্ডার
             record = {
                 "timestamp": now_db,
                 "speed_kmh": i_speed,
@@ -96,16 +181,11 @@ def collect():
                 "severity_status": status_text,
                 "severity_index": status_idx
             }
-            # সুপাবেস ইনসার্ট লজিক (নিশ্চিত করো তোমার supabase_insert ফাংশনটি এখানে আছে)
-            url = f"{SUPABASE_URL}/rest/v1/traffic_records"
-            headers = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}", "Content-Type": "application/json"}
-            requests.post(url, json=record, headers=headers)
             
-            # CSV ব্যাকআপ
-            with open('backend/traffic_data_backup.csv', 'a', newline='', encoding='utf-8-sig') as f:
-                writer = csv.DictWriter(f, fieldnames=record.keys())
-                if os.stat('backend/traffic_data_backup.csv').st_size == 0: writer.writeheader()
-                writer.writerow(record)
-        time.sleep(2)
+            supabase_insert(record)
+            save_to_csv(record)
+            
+        time.sleep(2) # API Protection Delay
 
-if __name__ == "__main__": collect()
+if __name__ == "__main__":
+    collect()
