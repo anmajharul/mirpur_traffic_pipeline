@@ -16,33 +16,27 @@ WEATHER_API_KEY = os.getenv("WEATHER_API_KEY")
 CENTER_COORDS = "23.807128,90.368799"
 
 # কালেকশন পেয়ার (Inner: Intersection, Outer: 350m Back)
-# FIELD-TESTED COORDINATES (Mirpur-10 Roundabout Analysis)
 LOCATION_PAIRS = [
-    # North (Mirpur-11 থেকে আসা ট্রাফিক)
     {
         "direction": "North (Mirpur-11)", 
-        "inner": "23.807450,90.368600", # ইন্টারসেকশন এন্ট্রান্স
-        "outer": "23.810400,90.368750"  # ৩৫০ মিটার উত্তরে (মিরপুর-১১ এর দিকে)
+        "inner": "23.807450,90.368600", 
+        "outer": "23.810400,90.368750" 
     },
-    # South (Kazipara থেকে আসা ট্রাফিক)
     {
         "direction": "South (Kazipara)", 
-        "inner": "23.806750,90.368750", # ইন্টারসেকশন এন্ট্রান্স
-        "outer": "23.803850,90.368800"  # ৩৫০ মিটার দক্ষিণে (কাজীপাড়ার দিকে)
+        "inner": "23.806750,90.368750", 
+        "outer": "23.803850,90.368800" 
     },
-    # East (Mirpur-14 থেকে আসা ট্রাফিক - Adjusted for Road Center)
     {
         "direction": "East (Mirpur-14)", 
-        "inner": "23.807180,90.369400", # গোলচত্বরের ঠিক পূর্ব দিকের প্রবেশ মুখ
-        "outer": "23.807200,90.372300"  # ৩৫০ মিটার পূর্বে (মিরপুর-১৪ এর দিকে)
+        "inner": "23.807180,90.369400", 
+        "outer": "23.807200,90.372300" 
     },
-    # West (Mirpur-2 থেকে আসা ট্রাফিক)
     {
         "direction": "West (Mirpur-2)", 
-        "inner": "23.807050,90.368250", # ইন্টারসেকশন এন্ট্রান্স
-        "outer": "23.807100,90.365300"  # ৩৫০ মিটার পশ্চিমে (মিরপুর-২ এর দিকে)
+        "inner": "23.807050,90.368250", 
+        "outer": "23.807100,90.365300" 
     }
-]
 ]
 
 session = requests.Session()
@@ -51,7 +45,7 @@ session = requests.Session()
 # 📊 SEVERITY CALCULATOR
 # ==========================================
 def calculate_severity(inner_speed, outer_speed):
-    """ইনার এবং আউটার স্পিড তুলনা করে জ্যামের ভয়াবহতা নির্ণয়"""
+    """ইনার এবং আউটার স্পিড তুলনা করে জ্যামের ভয়াবহতা নির্ণয়"""
     if inner_speed < 10 and outer_speed < 10:
         return "Critical (Queue > 350m)", 3
     elif inner_speed < 12 or outer_speed < 12:
@@ -169,13 +163,9 @@ def collect():
         o_speed = get_traffic_speed(pair["outer"])
         
         if i_speed is not None and o_speed is not None:
-            # ভয়াবহতা লজিক
             status_text, status_idx = calculate_severity(i_speed, o_speed)
-            
-            # জ্যামের শতাংশ (৪০ কিমি/ঘণ্টাকে ফ্রি-ফ্লো ধরে)
             cong_pct = max(0.0, min(100.0, 100.0 - (i_speed / 40.0) * 100))
             
-            # তোমার সুপাবেস স্ক্রিনশটের হুবহু কলাম অর্ডার
             record = {
                 "timestamp": now_db,
                 "speed_kmh": i_speed,
@@ -206,7 +196,7 @@ def collect():
             supabase_insert(record)
             save_to_csv(record)
             
-        time.sleep(2) # API Protection Delay
+        time.sleep(2) 
 
 if __name__ == "__main__":
     collect()
