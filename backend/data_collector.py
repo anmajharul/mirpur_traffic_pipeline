@@ -16,12 +16,33 @@ WEATHER_API_KEY = os.getenv("WEATHER_API_KEY")
 CENTER_COORDS = "23.807128,90.368799"
 
 # কালেকশন পেয়ার (Inner: Intersection, Outer: 350m Back)
+# FIELD-TESTED COORDINATES (Mirpur-10 Roundabout Analysis)
 LOCATION_PAIRS = [
-    {"direction": "North (Mirpur-11)", "inner": "23.807271,90.368554", "outer": "23.810272,90.368799"},
-    {"direction": "South (Kazipara)", "inner": "23.806895,90.368611", "outer": "23.803984,90.368799"},
-    # মিরপুর-১৪ এর রি-অ্যাডজাস্ট করা কোঅর্ডিনেট (এপিআই ফ্রেন্ডলি)
-    {"direction": "East (Mirpur-14)", "inner": "23.807150,90.369300", "outer": "23.807150,90.372500"},
-    {"direction": "West (Mirpur-2)", "inner": "23.807025,90.368412", "outer": "23.807128,90.365363"}
+    # North (Mirpur-11 থেকে আসা ট্রাফিক)
+    {
+        "direction": "North (Mirpur-11)", 
+        "inner": "23.807450,90.368600", # ইন্টারসেকশন এন্ট্রান্স
+        "outer": "23.810400,90.368750"  # ৩৫০ মিটার উত্তরে (মিরপুর-১১ এর দিকে)
+    },
+    # South (Kazipara থেকে আসা ট্রাফিক)
+    {
+        "direction": "South (Kazipara)", 
+        "inner": "23.806750,90.368750", # ইন্টারসেকশন এন্ট্রান্স
+        "outer": "23.803850,90.368800"  # ৩৫০ মিটার দক্ষিণে (কাজীপাড়ার দিকে)
+    },
+    # East (Mirpur-14 থেকে আসা ট্রাফিক - Adjusted for Road Center)
+    {
+        "direction": "East (Mirpur-14)", 
+        "inner": "23.807180,90.369400", # গোলচত্বরের ঠিক পূর্ব দিকের প্রবেশ মুখ
+        "outer": "23.807200,90.372300"  # ৩৫০ মিটার পূর্বে (মিরপুর-১৪ এর দিকে)
+    },
+    # West (Mirpur-2 থেকে আসা ট্রাফিক)
+    {
+        "direction": "West (Mirpur-2)", 
+        "inner": "23.807050,90.368250", # ইন্টারসেকশন এন্ট্রান্স
+        "outer": "23.807100,90.365300"  # ৩৫০ মিটার পশ্চিমে (মিরপুর-২ এর দিকে)
+    }
+]
 ]
 
 session = requests.Session()
