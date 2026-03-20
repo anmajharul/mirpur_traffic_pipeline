@@ -4,7 +4,7 @@ import requests
 import time
 import re
 from supabase import create_client, Client
-from datetime import datetime
+from datetime import datetime, timezone
 
 # ==========================================
 # ⚙️ CONFIGURATION & API KEYS
@@ -20,123 +20,133 @@ if not all([SUPABASE_URL, SUPABASE_KEY, GROQ_API_KEY]):
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # ==========================================
-# 🧠 FETCH DATA & TRAIN LLM
+# 🧠 FETCH & TRAIN LOGIC
 # ==========================================
 def train_model():
-    print(f"⏳ [{datetime.now().strftime('%H:%M:%S')}] Fetching historical records...")
+    print(f"⏳ [{datetime.now().strftime('%H:%M:%S')}] Starting AI Training Cycle...")
     
     try:
-        # ৫০০০ রেকর্ড রিসার্চের জন্য যথেষ্ট ভালো স্যাম্পল সাইজ
-        response = supabase.table("traffic_records").select("direction, speed_kmh, timestamp").order("timestamp", desc=True).limit(5000).execute()
+        # লেটেস্ট ৫০০০ রেকর্ড রিসার্চের জন্য নিচ্ছি (Inner Speed & Severity সহ)
+        response = supabase.table("traffic_records") \
+            .select("direction, inner_speed, severity_index, timestamp") \
+            .order("timestamp", desc=True) \
+            .limit(5000) \
+            .execute()
         data = response.data
     except Exception as e:
         print(f"❌ Supabase Fetch Error: {e}")
         return
 
-    if not data:
-        print("❌ No data found in 'traffic_records'.")
+    if not data or len(data) < 100:
+        print("❌ Not enough data to train. Need at least 100 records.")
         return
 
-    # ১. ডেটা গ্রুপিং (Direction -> Hour -> Avg Speed)
-    directions_data = {}
+    # ১. ডাটা প্রসেসিং (Direction -> Hour -> Statistics)
+    # আমরা এখন স্পিড এবং জ্যামের ইনডেক্স—দুটোই ট্র্যাক করবো
+    directions_stats = {}
     for row in data:
         direction = row.get('direction')
         time_field = row.get('timestamp')
-        speed = row.get('speed_kmh')
+        i_speed = row.get('inner_speed')
+        s_idx = row.get('severity_index')
         
-        if not all([direction, time_field, speed]): continue
+        if not all([direction, time_field]) or i_speed is None: continue
             
         try:
-            # Timestamp থেকে ঘণ্টা বের করা (UTC handling)
             time_obj = datetime.fromisoformat(time_field.replace('Z', '+00:00'))
             hour = time_obj.hour
             
-            if direction not in directions_data: directions_data[direction] = {}
-            if hour not in directions_data[direction]: directions_data[direction][hour] = {"sum": 0, "count": 0}
+            if direction not in directions_stats: directions_stats[direction] = {}
+            if hour not in directions_stats[direction]: 
+                directions_stats[direction][hour] = {"speed_sum": 0, "severity_sum": 0, "count": 0}
             
-            directions_data[direction][hour]["sum"] += speed
-            directions_data[direction][hour]["count"] += 1
-        except:
-            continue
+            directions_stats[direction][hour]["speed_sum"] += i_speed
+            directions_stats[direction][hour]["severity_sum"] += (s_idx if s_idx is not None else 0)
+            directions_stats[direction][hour]["count"] += 1
+        except: continue
 
-    # ২. প্রতিটি ডিরেকশনের জন্য আলাদাভাবে AI ট্রেনিং
-    for direction, hourly_cal in directions_data.items():
-        hist_str = ""
-        for h in sorted(hourly_cal.keys()):
-            avg_speed = round(hourly_cal[h]["sum"] / hourly_cal[h]["count"], 2)
-            hist_str += f"Hour {h}: {avg_speed} km/h\n"
+    # ২. প্রতিটি ডিরেকশনের জন্য AI ট্রেনিং শুরু
+    for direction, hourly_map in directions_stats.items():
+        # রিসার্চের জন্য ডাটা স্ট্রিং তৈরি
+        history_summary = ""
+        for h in sorted(hourly_map.keys()):
+            avg_s = round(hourly_map[h]["speed_sum"] / hourly_map[h]["count"], 2)
+            avg_sev = round(hourly_map[h]["severity_sum"] / hourly_map[h]["count"], 2)
+            history_summary += f"H{h}: {avg_s}km/h (Sev:{avg_sev})\n"
             
-        print(f"\n🤖 Training Llama-3.3 for: {direction}...")
+        print(f"\n🤖 Training Llama-3.3 for: {direction} (Using Inner-Node Data)...")
 
-        # মেগা প্রম্পট: মডেলকে বাধ্য করা যেন সে শুধু JSON দেয়
+        # সিস্টেম ইন্সট্রাকশন (মডেলকে বাধ্য করা যেন সে শুধু JSON দেয়)
         sys_instruction = (
-            f"You are a Traffic Flow ML model for {direction} at Mirpur-10, Dhaka. "
-            "Task: Predict 24-hour speed profile based on historical data. "
-            "CRITICAL: Output ONLY a raw JSON array of 24 numbers (Hour 0 to 23). "
-            "No explanations, no markdown code blocks, just [n1, n2, ... n24]."
+            f"You are a Traffic Prediction Expert for Mirpur-10, Dhaka. Target: {direction}. "
+            "Task: Based on historical Inner-Node speeds and Severity Index (0-3), "
+            "predict a 24-hour optimized speed baseline (Hour 0-23). "
+            "CRITICAL: Output ONLY a valid JSON array of 24 numbers. No text before/after. "
+            "Example: [30.5, 32.1, ...]"
         )
         
-        prompt = f"Historical Speed Data:\n{hist_str}\n\nReturn exactly 24 elements JSON array."
+        prompt = f"Historical Intersection Data:\n{history_summary}\n\nReturn Exactly 24 elements JSON array."
 
-        headers = {
-            "Authorization": f"Bearer {GROQ_API_KEY}",
-            "Content-Type": "application/json"
-        }
-        
         payload = {
             "model": "llama-3.3-70b-versatile",
-            "temperature": 0.2, # কিছুটা ক্রিয়েটিভিটি এলাউ করা হয়েছে স্মুথনেস এর জন্য
+            "temperature": 0.25, # কিছুটা ফ্লেক্সিবল রাখা হয়েছে স্মুথ গ্রাফের জন্য
             "messages": [
                 {"role": "system", "content": sys_instruction},
                 {"role": "user", "content": prompt}
             ]
         }
 
-        # ৩. স্মার্ট রিট্রাই লজিক (Handling Rate Limits)
-        groq_output = ""
+        # ৩. স্মার্ট কল উইথ রেট-লিমিট হ্যান্ডলিং
+        groq_raw = ""
         for attempt in range(3):
             try:
-                res = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload, timeout=45)
+                res = requests.post(
+                    "https://api.groq.com/openai/v1/chat/completions",
+                    headers={"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"},
+                    json=payload, timeout=45
+                )
                 if res.status_code == 200:
-                    groq_output = res.json()['choices'][0]['message']['content']
+                    groq_raw = res.json()['choices'][0]['message']['content']
                     break
                 elif res.status_code == 429:
-                    print(f"⚠️ Rate limit hit! Waiting 40s (Attempt {attempt+1}/3)...")
-                    time.sleep(40)
+                    print(f"⚠️ Rate limit! Waiting 35s (Attempt {attempt+1})...")
+                    time.sleep(35)
                 else:
-                    print(f"❌ API Error {res.status_code}: {res.text}")
+                    print(f"❌ Error {res.status_code}: {res.text}")
                     break
             except Exception as e:
-                print(f"❌ Connection Error: {e}")
+                print(f"❌ Request Failed: {e}")
                 time.sleep(10)
 
-        if not groq_output:
-            continue
+        if not groq_raw: continue
 
-        # ৪. ক্লিনআপ ও সুপাবেসে সেভ (Regex to extract array)
+        # ৪. ক্লিনআপ ও সুপাবেসে সেভ
         try:
-            # এআই যদি বাড়তি কথা লিখে ফেলে, এই রেজেক্স শুধু ব্র্যাকেটের ভেতরের অংশটুকু নিবে
-            arr_match = re.search(r'\[\s*(-?\d+(\.\d+)?\s*,\s*)*-?\d+(\.\d+)?\s*\]', groq_output)
-            if arr_match:
-                learned_weights = json.loads(arr_match.group(0))
-            else:
-                # ফলব্যাক: ট্রাই টু পার্স সরাসরি
-                learned_weights = json.loads(groq_output.strip())
+            # Regex ব্যবহার করে শুধু ব্র্যাকেটের ভেতরের অংশটুকু নেওয়া (অতিরিক্ত টেক্সট বাদ দিতে)
+            match = re.search(r'\[\s*(-?\d+(\.\d+)?\s*,\s*)*-?\d+(\.\d+)?\s*\]', groq_raw)
+            if match:
+                learned_weights = json.loads(match.group(0))
                 
-            if len(learned_weights) == 24:
-                payload_db = {"direction": direction, "weights": learned_weights}
-                # Upsert এর জন্য 'direction' কলামটি অবশ্যই Primary বা Unique হতে হবে
-                supabase.table("ml_weights").upsert(payload_db).execute()
-                print(f"✅ Training Complete for {direction}!")
+                if len(learned_weights) == 24:
+                    # 'ml_weights' টেবিলে আপসার্ট করা
+                    db_payload = {
+                        "direction": direction, 
+                        "weights": learned_weights,
+                        "last_updated": datetime.now(timezone.utc).isoformat()
+                    }
+                    supabase.table("ml_weights").upsert(db_payload).execute()
+                    print(f"✅ AI Weights updated for {direction}!")
+                else:
+                    print(f"❌ Received {len(learned_weights)} elements, expected 24.")
             else:
-                print(f"❌ Error: Predicted {len(learned_weights)} hours. Need exactly 24.")
+                print(f"❌ AI Response format error for {direction}")
                 
         except Exception as e:
-            print(f"❌ JSON Parsing failed for {direction}: {e}")
+            print(f"❌ Parsing failed for {direction}: {e}")
 
-        # ৫. ফ্রি-টিয়ার সেফটি গ্যাপ (Groq Rate limit protection)
-        print("⏳ Cooling down for 25 seconds...")
-        time.sleep(25)
+        # ৫. কুলডাউন (Groq এর ফ্রি টিয়ারে রিকোয়েস্টের গ্যাপ জরুরি)
+        print("⏳ Cooling down for 20 seconds...")
+        time.sleep(20)
 
 if __name__ == "__main__":
     train_model()

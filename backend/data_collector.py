@@ -5,193 +5,107 @@ import csv
 from datetime import datetime, timezone
 
 # ==========================================
-# 🔑 API KEYS & CONFIG (GitHub Secrets)
+# 🔑 API KEYS & CONFIG
 # ==========================================
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 HERE_API_KEY = os.getenv("HERE_API_KEY", "").strip()
 WEATHER_API_KEY = os.getenv("WEATHER_API_KEY")
 
-# মিরপুর-১০ গোলচত্বর (Geometric Center)
 CENTER_COORDS = "23.807128,90.368799"
 
-# কালেকশন পেয়ার (Inner & Outer Nodes - ৩৫০ মিটার গ্যাপ)
 LOCATION_PAIRS = [
-    {
-        "direction": "North (Mirpur-11)",
-        "inner": "23.807271,90.368554",
-        "outer": "23.810272,90.368799"
-    },
-    {
-        "direction": "South (Kazipara)",
-        "inner": "23.806895,90.368611",
-        "outer": "23.803984,90.368799"
-    },
-    {
-        "direction": "East (Mirpur-14)",
-        "inner": "23.807116,90.368789",
-        "outer": "23.807128,90.372235"
-    },
-    {
-        "direction": "West (Mirpur-2)",
-        "inner": "23.807025,90.368412",
-        "outer": "23.807128,90.365363"
-    }
+    {"direction": "North (Mirpur-11)", "inner": "23.807271,90.368554", "outer": "23.810272,90.368799"},
+    {"direction": "South (Kazipara)", "inner": "23.806895,90.368611", "outer": "23.803984,90.368799"},
+    # মিরপুর-১৪ এর নতুন কোঅর্ডিনেট (এপিআই ফ্রেন্ডলি)
+    {"direction": "East (Mirpur-14)", "inner": "23.807150,90.369300", "outer": "23.807150,90.372500"},
+    {"direction": "West (Mirpur-2)", "inner": "23.807025,90.368412", "outer": "23.807128,90.365363"}
 ]
 
 session = requests.Session()
 
-# ==========================================
-# 📊 SEVERITY CALCULATOR (Research Grade)
-# ==========================================
 def calculate_severity(inner_speed, outer_speed):
-    """স্পিড তুলনা করে জ্যামের ভয়াবহতা এবং ইনডেক্স বের করে"""
-    if inner_speed < 10 and outer_speed < 10:
-        return "Critical (Queue > 350m)", 3
-    elif inner_speed < 12 or outer_speed < 12:
-        return "Moderate (Bottleneck)", 2
-    elif inner_speed > 25 and outer_speed > 25:
-        return "Free Flow", 0
-    else:
-        return "Normal Traffic", 1
+    if inner_speed < 10 and outer_speed < 10: return "Critical (Queue > 350m)", 3
+    elif inner_speed < 12 or outer_speed < 12: return "Moderate (Bottleneck)", 2
+    elif inner_speed > 25 and outer_speed > 25: return "Free Flow", 0
+    else: return "Normal Traffic", 1
 
-# ==========================================
-# 📁 CSV BACKUP UTILITY (Synced with Supabase)
-# ==========================================
-def save_to_csv(record):
-    file_path = 'backend/traffic_data_backup.csv'
-    file_exists = os.path.isfile(file_path)
-    try:
-        with open(file_path, 'a', newline='', encoding='utf-8-sig') as f:
-            # ডিকশনারির কি (Keys) অনুযায়ী কলাম তৈরি হবে (অর্ডার বজায় থাকবে)
-            writer = csv.DictWriter(f, fieldnames=record.keys())
-            if not file_exists or os.stat(file_path).st_size == 0:
-                writer.writeheader()
-            writer.writerow(record)
-        print(f"📁 CSV updated: {record['direction']}")
-    except Exception as e:
-        print(f"⚠️ CSV backup failed: {e}")
-
-# ==========================================
-# 🌤️ WEATHER, AQI & ASTRONOMY FETCH
-# ==========================================
 def get_comprehensive_weather():
     coords = "23.807,90.368"
-    c_url = f"https://api.weatherapi.com/v1/current.json?key={WEATHER_API_KEY}&q={coords}&aqi=yes"
-    a_url = f"https://api.weatherapi.com/v1/astronomy.json?key={WEATHER_API_KEY}&q={coords}"
+    url = f"https://api.weatherapi.com/v1/current.json?key={WEATHER_API_KEY}&q={coords}&aqi=yes"
+    astro_url = f"https://api.weatherapi.com/v1/astronomy.json?key={WEATHER_API_KEY}&q={coords}"
     try:
-        curr_res = session.get(c_url, timeout=10)
-        astro_res = session.get(a_url, timeout=10)
-        
-        curr = curr_res.json().get('current', {})
+        w_res = session.get(url, timeout=10).json()
+        a_res = session.get(astro_url, timeout=10).json()
+        curr = w_res.get('current', {})
         air = curr.get('air_quality', {})
-        astro = astro_res.json().get('astronomy', {}).get('astro', {})
-        
+        astro = a_res.get('astronomy', {}).get('astro', {})
         return {
-            "temp_c": curr.get('temp_c'),
-            "precip_mm": curr.get('precip_mm'),
-            "wind_kph": curr.get('wind_kph'),
-            "wind_dir": curr.get('wind_dir'),
-            "vis_km": curr.get('vis_km'),
-            "weather_condition": curr.get('condition', {}).get('text', "Unknown"),
-            "aqi": air.get('us-epa-index'),
-            "pm2_5": air.get('pm2_5'),
-            "sunrise": astro.get('sunrise'),
-            "sunset": astro.get('sunset'),
-            "moon_phase": astro.get('moon_phase')
+            "temp": curr.get('temp_c'), "precip": curr.get('precip_mm'),
+            "w_spd": curr.get('wind_kph'), "w_dir": curr.get('wind_dir'),
+            "vis": curr.get('vis_km'), "uv": curr.get('uv'),
+            "cond": curr.get('condition', {}).get('text', "Unknown"),
+            "aqi": air.get('us-epa-index'), "pm25": air.get('pm2_5'),
+            "pm10": air.get('pm10'), "co": air.get('co'), "no2": air.get('no2'),
+            "rise": astro.get('sunrise'), "set": astro.get('sunset'), "moon": astro.get('moon_phase')
         }
-    except Exception:
-        return {}
+    except: return {}
 
-# ==========================================
-# 🚗 TRAFFIC SPEED FETCH (HERE API)
-# ==========================================
-def get_traffic_speed(origin):
+def get_speed(origin):
     url = "https://router.hereapi.com/v8/routes"
-    params = {
-        "transportMode": "car",
-        "origin": origin,
-        "destination": CENTER_COORDS,
-        "return": "summary",
-        "routingMode": "fast",
-        "apiKey": HERE_API_KEY
-    }
+    params = {"transportMode": "car", "origin": origin, "destination": CENTER_COORDS, "return": "summary", "apiKey": HERE_API_KEY}
     try:
-        res = session.get(url, params=params, timeout=12)
-        if res.status_code == 200:
-            data = res.json()
-            summary = data['routes'][0]['sections'][0].get('summary', {})
-            duration, length = summary.get('duration', 0), summary.get('length', 0)
-            if duration > 0:
-                return round((length / duration) * 3.6, 2)
-    except Exception:
-        pass
-    return None
+        res = session.get(url, params=params, timeout=12).json()
+        summary = res['routes'][0]['sections'][0].get('summary', {})
+        return round((summary.get('length', 0) / summary.get('duration', 1)) * 3.6, 2)
+    except: return None
 
-# ==========================================
-# 🗄️ SUPABASE INSERT
-# ==========================================
-def supabase_insert(payload):
-    url = f"{SUPABASE_URL}/rest/v1/traffic_records"
-    headers = {
-        "apikey": SUPABASE_KEY,
-        "Authorization": f"Bearer {SUPABASE_KEY}",
-        "Content-Type": "application/json",
-        "Prefer": "return=minimal",
-    }
-    try:
-        res = session.post(url, json=payload, headers=headers, timeout=15)
-        if res.ok:
-            print(f"✅ Supabase Updated: {payload['direction']}")
-        else:
-            print(f"❌ DB Error: {res.status_code}")
-    except Exception as e:
-        print(f"❌ Connection Error: {e}")
-
-# ==========================================
-# 🧠 MAIN COLLECTION LOGIC
-# ==========================================
 def collect():
-    print(f"🚀 Data Collection Started: {datetime.now().strftime('%H:%M:%S')}")
     weather = get_comprehensive_weather()
     now_db = datetime.now(timezone.utc).isoformat()
-    
     for pair in LOCATION_PAIRS:
-        i_speed = get_traffic_speed(pair["inner"])
-        o_speed = get_traffic_speed(pair["outer"])
-        
+        i_speed = get_speed(pair["inner"])
+        o_speed = get_speed(pair["outer"])
         if i_speed is not None and o_speed is not None:
-            # ভয়াবহতা ক্যালকুলেশন
             status_text, status_idx = calculate_severity(i_speed, o_speed)
+            cong_pct = max(0.0, min(100.0, 100.0 - (i_speed / 40.0) * 100))
             
-            # সুপাবেস এবং সিএসভি কলামের সিকোয়েন্স অনুযায়ী রেকর্ড তৈরি
             record = {
                 "timestamp": now_db,
-                "direction": pair["direction"],
                 "speed_kmh": i_speed,
-                "temperature": weather.get('temp_c'),
-                "rain_mm": weather.get('precip_mm'),
-                "wind_speed": weather.get('wind_kph'),
-                "wind_dir": weather.get('wind_dir'),
-                "visibility_km": weather.get('vis_km'), # সুপাবেসের কলাম নামের সাথে সিঙ্ক করা
+                "congestion_percent": round(cong_pct, 1),
+                "rain_mm": weather.get('precip'),
+                "temperature": weather.get('temp'),
+                "destination": "Mirpur-10 Circle",
+                "direction": pair["direction"],
+                "wind_speed": weather.get('w_spd'),
+                "visibility_km": weather.get('vis'),
+                "uv_index": weather.get('uv'),
+                "wind_dir": weather.get('w_dir'),
+                "weather_condition": weather.get('cond'),
                 "aqi": weather.get('aqi'),
-                "pm2_5": weather.get('pm2_5'),
-                "weather_condition": weather.get('weather_condition', "Unknown"),
-                "sunrise": weather.get('sunrise'),
-                "sunset": weather.get('sunset'),
-                "moon_phase": weather.get('moon_phase'),
+                "pm2_5": weather.get('pm25'),
+                "pm10": weather.get('pm10'),
+                "co_level": weather.get('co'),
+                "no2_level": weather.get('no2'),
+                "sunrise": weather.get('rise'),
+                "sunset": weather.get('set'),
+                "moon_phase": weather.get('moon'),
                 "inner_speed": i_speed,
                 "outer_speed": o_speed,
                 "severity_status": status_text,
                 "severity_index": status_idx
             }
+            # সুপাবেস ইনসার্ট লজিক (নিশ্চিত করো তোমার supabase_insert ফাংশনটি এখানে আছে)
+            url = f"{SUPABASE_URL}/rest/v1/traffic_records"
+            headers = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}", "Content-Type": "application/json"}
+            requests.post(url, json=record, headers=headers)
             
-            # ১. সুপাবেসে পুশ
-            supabase_insert(record)
-            # ২. সিএসভিতে পুশ
-            save_to_csv(record)
-            
-        time.sleep(2) # API Rate Limit Protection
+            # CSV ব্যাকআপ
+            with open('backend/traffic_data_backup.csv', 'a', newline='', encoding='utf-8-sig') as f:
+                writer = csv.DictWriter(f, fieldnames=record.keys())
+                if os.stat('backend/traffic_data_backup.csv').st_size == 0: writer.writeheader()
+                writer.writerow(record)
+        time.sleep(2)
 
-if __name__ == "__main__":
-    collect()
+if __name__ == "__main__": collect()

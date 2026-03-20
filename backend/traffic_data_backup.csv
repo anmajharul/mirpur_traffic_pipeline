@@ -1,1 +1,1 @@
-Set-Content backend/traffic_data_backup.csv "timestamp,direction,speed_kmh,temperature,rain_mm,wind_speed,wind_dir,visibility_km,aqi,pm2_5,weather_condition,sunrise,sunset,moon_phase,inner_speed,outer_speed,severity_status,severity_index"
+Set-Content backend/traffic_data_backup.csv "timestamp,speed_kmh,congestion_percent,rain_mm,temperature,destination,direction,wind_speed,visibility_km,uv_index,wind_dir,weather_condition,aqi,pm2_5,pm10,co_level,no2_level,sunrise,sunset,moon_phase,inner_speed,outer_speed,severity_status,severity_index"
