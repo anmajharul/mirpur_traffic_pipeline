@@ -21,7 +21,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # পুরো হিস্ট্রি ফেচ করবে যাতে রিবেস করতে সুবিধা হয়
+          fetch-depth: 0 # পুরো হিস্ট্রি ফেচ করবে যাতে রিবেস করতে সুবিধা হয়
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -31,13 +31,15 @@ jobs:
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install requests
+          # সায়েন্টিফিক মেথড: backend ফোল্ডারের requirements.txt থেকে সব লাইব্রেরি ইনস্টল করা
+          if [ -f backend/requirements.txt ]; then pip install -r backend/requirements.txt; fi
 
       - name: Run Data Collector Script
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
           HERE_API_KEY: ${{ secrets.HERE_API_KEY }}
+          TOMTOM_API_KEY: ${{ secrets.TOMTOM_API_KEY }}
           WEATHER_API_KEY: ${{ secrets.WEATHER_API_KEY }}
         run: python backend/data_collector.py
 
@@ -49,10 +51,10 @@ jobs:
           # শুধুমাত্র CSV ফাইলটি অ্যাড করবে
           git add backend/traffic_data_backup.csv
           
-          # [skip ci] যোগ করা হয়েছে যাতে Vercel অকারণে বিল্ড না নেয়
+          # [skip ci] যোগ করা হয়েছে যাতে Vercel অকারণে বিল্ড না নেয়
           git commit -m "📊 Auto-update traffic backup: $(date) [skip ci]" || exit 0
           
-          # কনফ্লিক্ট এড়াতে 'theirs' স্ট্র্যাটেজি ব্যবহার করা হয়েছে (বুলিটপ্রুফ ফিক্স)
+          # কনফ্লিক্ট এড়াতে 'theirs' স্ট্র্যাটেজি ব্যবহার করা হয়েছে (বুলিটপ্রুফ ফিক্স)
           git pull origin main --rebase -X theirs
           
           git push origin main
