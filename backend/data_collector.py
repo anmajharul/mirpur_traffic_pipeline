@@ -15,27 +15,27 @@ WEATHER_API_KEY = os.getenv("WEATHER_API_KEY")
 # মিরপুর-১০ গোলচত্বর (Geometric Center)
 CENTER_COORDS = "23.807128,90.368799"
 
-# কালেকশন পেয়ার (Inner: Intersection, Outer: 350m Back)
+# চূড়ান্ত ৪টি ডিরেকশন (মিরপুর-১০ এ প্রবেশের ইনफ्লো রুট)
 LOCATION_PAIRS = [
     {
-        "direction": "North (Mirpur-11)", 
-        "inner": "23.807450,90.368600", 
-        "outer": "23.810400,90.368750" 
+        "direction": "North (Mirpur-11 to 10)", 
+        "inner": "23.807220,90.368727", 
+        "outer": "23.818833,90.365443" 
     },
     {
-        "direction": "South (Kazipara)", 
+        "direction": "South (Kazipara to 10)", 
         "inner": "23.806750,90.368750", 
         "outer": "23.803850,90.368800" 
     },
     {
-        "direction": "East (Mirpur-14)", 
-        "inner": "23.807180,90.369400", 
-        "outer": "23.807200,90.372300" 
+        "direction": "East (Mirpur-14 to 10)", 
+        "inner": "23.806954,90.368737", 
+        "outer": "23.798539,90.386764" 
     },
     {
-        "direction": "West (Mirpur-2)", 
-        "inner": "23.807050,90.368250", 
-        "outer": "23.807100,90.365300" 
+        "direction": "West (Mirpur-1 to 10)", 
+        "inner": "23.807086,90.368372", 
+        "outer": "23.801584,90.357905" 
     }
 ]
 
@@ -163,7 +163,10 @@ def collect():
         o_speed = get_traffic_speed(pair["outer"])
         
         if i_speed is not None and o_speed is not None:
+            # severity লজিক
             status_text, status_idx = calculate_severity(i_speed, o_speed)
+            
+            # congestion % লজিক (৪০ কিমি/ঘণ্টাকে ফ্রি-ফ্লো ধরে)
             cong_pct = max(0.0, min(100.0, 100.0 - (i_speed / 40.0) * 100))
             
             record = {
