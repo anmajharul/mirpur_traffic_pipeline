@@ -3,6 +3,7 @@ import requests
 import time
 import logging
 import csv
+import math  # গাণিতিক ক্যালকুলেশনের জন্য প্রয়োজনীয়
 from datetime import datetime, timezone, timedelta
 import numpy as np
 import WazeRouteCalculator
@@ -95,11 +96,19 @@ def get_env_data():
     except: return {}
 
 # ==========================================
-# 🧠 MAIN ENGINE
+# 🧠 MAIN ENGINE (MNL INTEGRATED)
 # ==========================================
 def collect():
     logging.info("🚀 Master Smart Mobility Pipeline Initiated...")
     env = get_env_data()
+    
+    # --- DCM CONSTANTS (BUBT Student Survey Model) ---
+    DIST_KM = 5.0           # Fixed commute distance for analysis
+    COST_BUS = 20.0         # Estimated fare in BDT
+    COST_METRO = 40.0       # Estimated fare in BDT
+    TIME_METRO_FIXED = 10.0 # Consistent Metro reliability (min)
+    STUDENT_DUMMY = 1       # Context: BUBT Student Population
+    FREE_FLOW_SPEED = 35.0  # Standard free-flow speed for Mirpur-10
     
     for name, coords in CORRIDORS.items():
         base, here, waze_min, dist = None, None, None, None
@@ -117,13 +126,31 @@ def collect():
         f_spd = round(dist / (f_min/60.0), 2)  # Fused Speed (Main Speed)
         h_spd = round(dist / (here/60.0), 2) if here else 0.0
         w_spd_kmh = round(dist / (waze_min/60.0), 2) if waze_min else 0.0
-        
-        # ==========================================
-        # 🚦 TRAFFIC ENGINEERING LOGIC FIX
-        # ==========================================
-        FREE_FLOW_SPEED = 35.0  # মিরপুর-১০ এর জন্য স্ট্যান্ডার্ড ফ্রি-ফ্লো স্পিড
 
-        # গাণিতিক কনজেশন ক্যালকুলেশন
+        # ==========================================
+        # 📈 DISCRETE CHOICE MODEL (MNL) IMPLEMENTATION
+        # ==========================================
+        # ১. বাসের জন্য রিয়েল-টাইম ট্রাভেল টাইম ক্যালকুলেশন
+        bus_travel_time = round((DIST_KM / f_spd) * 60, 2) if f_spd > 0 else 999
+        
+        # ২. ইউটিলিটি ফাংশন ক্যালকুলেশন (MNL Theory)
+        u_bus = -0.5 + (-0.05 * bus_travel_time) + (-0.01 * COST_BUS)
+        u_metro = -0.01 + (-0.02 * TIME_METRO_FIXED) + (-0.03 * COST_METRO) + (0.5 * STUDENT_DUMMY)
+        
+        # ৩. লগিট প্রোবাবিলিটি ক্যালকুলেশন
+        try:
+            exp_u_bus = math.exp(u_bus)
+            exp_u_metro = math.exp(u_metro)
+            p_metro = exp_u_metro / (exp_u_metro + exp_u_bus)
+            prob_metro = round(p_metro * 100, 1)
+            prob_bus = round((1 - p_metro) * 100, 1)
+        except OverflowError:
+            prob_metro = 100.0 if u_metro > u_bus else 0.0
+            prob_bus = 100.0 - prob_metro
+
+        # ==========================================
+        # 🚦 TRAFFIC ENGINEERING LOGIC
+        # ==========================================
         if f_spd >= FREE_FLOW_SPEED:
             congestion_percent = 0.0
         else:
@@ -134,6 +161,7 @@ def collect():
         
         lat, lon = coords["origin"].split(",")
         
+        # Final Record Generation
         record = {
             "created_at": datetime.now(timezone.utc).isoformat(),
             "direction": name,
@@ -144,8 +172,12 @@ def collect():
             "inner_speed": f_spd,
             "outer_speed": round(h_spd * 1.1, 2),
             "base_eta_min": round(base, 1),
-            "congestion_percent": congestion_percent,  # ✅ FIXED
-            "jam_factor": jam_factor,                  # ✅ FIXED
+            "congestion_percent": congestion_percent,
+            "prob_metro": prob_metro,      # ✅ LIVE Choice
+            "prob_bus": prob_bus,          # ✅ LIVE Choice
+            "utility_bus": round(u_bus, 3), # ✅ For Research Trace
+            "utility_metro": round(u_metro, 3),
+            "jam_factor": jam_factor,
             "bottleneck_ratio": round(f_spd / 25.0, 2),
             "severity_status": ["Free Flow", "Normal", "Moderate", "Critical"][s_idx],
             "severity_index": s_idx,
@@ -166,9 +198,9 @@ def collect():
         try:
             supabase.table("smart_eta_logs").insert(record).execute()
             export_to_csv("smart_eta_logs", "traffic_data_backup.csv", record)
-            logging.info(f"✅ Synced & Backed Up: {name} (Speed: {f_spd} km/h, Congestion: {congestion_percent}%)")
+            logging.info(f"✅ Synced: {name} | Metro: {prob_metro}% vs Bus: {prob_bus}% (Speed: {f_spd} km/h)")
         except Exception as e:
-            logging.error(f"❌ Process Error: {e}")
+            logging.error(f"❌ Record Process Error: {e}")
         
         time.sleep(2)
 
