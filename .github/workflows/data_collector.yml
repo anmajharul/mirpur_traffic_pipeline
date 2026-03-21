@@ -1,60 +1,65 @@
-name: 1. Traffic Data Collector (5-Min Interval)
+name: 1. Traffic Data Research Pipeline (5-Min Interval)
 
 on:
   push:
     branches:
       - main
   schedule:
-    # প্রতি ৫ মিনিট পর পর রান হবে (থিসিসের জন্য নিখুঁত গ্রাফ নিশ্চিত করতে)
+    # প্রতি ৫ মিনিট পর পর স্বয়ংক্রিয়ভাবে রান হবে (High-Fidelity Research Data)
     - cron: '*/5 * * * *' 
-  workflow_dispatch: # ম্যানুয়ালি রান করার জন্য
+  workflow_dispatch: # যখন ইচ্ছা ম্যানুয়ালি রান করার জন্য
 
 jobs:
-  collect:
+  collect_and_backup:
     runs-on: ubuntu-latest
     
-    # রিপোজিটরিতে নতুন ডেটা লেখার পারমিশন নিশ্চিত করা
+    # রিপোজিটরিতে CSV ব্যাকআপ লেখার পারমিশন নিশ্চিত করা
     permissions:
       contents: write
 
     steps:
-      - name: Checkout Code
+      - name: 1. Checkout Repository Logic
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # পুরো হিস্ট্রি ফেচ করবে যাতে রিবেস করতে সুবিধা হয়
+          fetch-depth: 0 # পুরো হিস্ট্রি ফেচ করবে যাতে গিট পুশ করার সময় কনফ্লিক্ট না হয়
 
-      - name: Set up Python
+      - name: 2. Initialize Python Environment
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
-      - name: Install Dependencies
+      - name: 3. Install Research Dependencies
         run: |
           python -m pip install --upgrade pip
-          # সায়েন্টিফিক মেথড: backend ফোল্ডারের requirements.txt থেকে সব লাইব্রেরি ইনস্টল করা
-          if [ -f backend/requirements.txt ]; then pip install -r backend/requirements.txt; fi
+          # backend ফোল্ডারের requirements.txt থেকে প্রয়োজনীয় লাইব্রেরি ইনস্টল করা
+          if [ -f backend/requirements.txt ]; then 
+            pip install -r backend/requirements.txt
+          else
+            echo "❌ Error: requirements.txt not found in backend/ folder!"
+            exit 1
+          fi
 
-      - name: Run Data Collector Script
+      - name: 4. Execute Data Fusion Script
         env:
+          # শুধুমাত্র প্রয়োজনীয় এবং ভেরিফাইড কীগুলো পাঠানো হচ্ছে
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
           HERE_API_KEY: ${{ secrets.HERE_API_KEY }}
-          TOMTOM_API_KEY: ${{ secrets.TOMTOM_API_KEY }}
           WEATHER_API_KEY: ${{ secrets.WEATHER_API_KEY }}
         run: python backend/data_collector.py
 
-      - name: Commit and Push CSV Backup
+      - name: 5. Synchronize CSV Backup to Repository
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           
-          # শুধুমাত্র CSV ফাইলটি অ্যাড করবে
-          git add backend/traffic_data_backup.csv
+          # শুধুমাত্র ব্যাকআপ ফাইলটি ট্র্যাক করা
+          git add backend/traffic_data_backup.csv || echo "No CSV change detected"
           
-          # [skip ci] যোগ করা হয়েছে যাতে Vercel অকারণে বিল্ড না নেয়
-          git commit -m "📊 Auto-update traffic backup: $(date) [skip ci]" || exit 0
+          # [skip ci] ব্যবহার করা হয়েছে যাতে এই কমিন্ট থেকে আবার অ্যাকশন ট্রিগার না হয়
+          git commit -m "📊 Research Data Sync: $(date) [skip ci]" || exit 0
           
-          # কনফ্লিক্ট এড়াতে 'theirs' স্ট্র্যাটেজি ব্যবহার করা হয়েছে (বুলিটপ্রুফ ফিক্স)
+          # কনফ্লিক্ট এড়ানোর জন্য 'theirs' স্ট্র্যাটেজি (বুলিটপ্রুফ মার্চিং)
           git pull origin main --rebase -X theirs
           
           git push origin main

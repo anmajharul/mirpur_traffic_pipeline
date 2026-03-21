@@ -1,4 +1,5 @@
 ﻿requests>=2.31.0
-supabase
+supabase>=2.3.0
+numpy>=1.24.0
+WazeRouteCalculator>=0.15
 python-dotenv>=0.20.0
-numpy
