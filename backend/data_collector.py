@@ -158,6 +158,8 @@ def collect():
     weather = get_comprehensive_weather()
     now_db = datetime.now(timezone.utc).isoformat()
     
+    FREE_FLOW_SPEED = 40.0
+
     for pair in LOCATION_PAIRS:
         i_speed = get_traffic_speed(pair["inner"])
         o_speed = get_traffic_speed(pair["outer"])
@@ -165,13 +167,19 @@ def collect():
         if i_speed is not None and o_speed is not None:
             # severity লজিক
             status_text, status_idx = calculate_severity(i_speed, o_speed)
-            
-            # congestion % লজিক (৪০ কিমি/ঘণ্টাকে ফ্রি-ফ্লো ধরে)
-            cong_pct = max(0.0, min(100.0, 100.0 - (i_speed / 40.0) * 100))
-            
+
+            # Dashboard speed: intersection congestion shows inner speed
+            dashboard_speed = i_speed
+
+            # Academic congestion formula (baseline 40 km/h)
+            cong_pct = max(0.0, min(100.0, 100.0 - (dashboard_speed / FREE_FLOW_SPEED) * 100))
+
+            # Queue/Bottleneck ratio for research
+            bottleneck_ratio = round(i_speed / o_speed, 2) if o_speed > 0 else 1.0
+
             record = {
                 "timestamp": now_db,
-                "speed_kmh": i_speed,
+                "speed_kmh": dashboard_speed,
                 "congestion_percent": round(cong_pct, 1),
                 "rain_mm": weather.get('precip'),
                 "temperature": weather.get('temp'),
@@ -192,6 +200,7 @@ def collect():
                 "moon_phase": weather.get('moon'),
                 "inner_speed": i_speed,
                 "outer_speed": o_speed,
+                "bottleneck_ratio": bottleneck_ratio,
                 "severity_status": status_text,
                 "severity_index": status_idx
             }
