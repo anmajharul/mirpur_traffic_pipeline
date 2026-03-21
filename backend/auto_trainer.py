@@ -37,12 +37,12 @@ def train_model():
         print(f"❌ Supabase Fetch Error: {e}")
         return
 
+    # মাজহারুল, খেয়াল করো: অন্তত ১০০টি রেকর্ড না থাকলে মডেল ট্রেন হবে না
     if not data or len(data) < 100:
-        print("❌ Not enough data to train. Need at least 100 records.")
+        print(f"❌ Not enough data to train. Current records: {len(data) if data else 0}. Need at least 100.")
         return
 
     # ১. ডাটা প্রসেসিং (Direction -> Hour -> Statistics)
-    # আমরা এখন স্পিড এবং জ্যামের ইনডেক্স—দুটোই ট্র্যাক করবো
     directions_stats = {}
     for row in data:
         direction = row.get('direction')
@@ -76,7 +76,7 @@ def train_model():
             
         print(f"\n🤖 Training Llama-3.3 for: {direction} (Using Inner-Node Data)...")
 
-        # সিস্টেম ইন্সট্রাকশন (মডেলকে বাধ্য করা যেন সে শুধু JSON দেয়)
+        # সিস্টেম ইন্সট্রাকশন
         sys_instruction = (
             f"You are a Traffic Prediction Expert for Mirpur-10, Dhaka. Target: {direction}. "
             "Task: Based on historical Inner-Node speeds and Severity Index (0-3), "
@@ -89,7 +89,7 @@ def train_model():
 
         payload = {
             "model": "llama-3.3-70b-versatile",
-            "temperature": 0.25, # কিছুটা ফ্লেক্সিবল রাখা হয়েছে স্মুথ গ্রাফের জন্য
+            "temperature": 0.25,
             "messages": [
                 {"role": "system", "content": sys_instruction},
                 {"role": "user", "content": prompt}
@@ -122,17 +122,16 @@ def train_model():
 
         # ৪. ক্লিনআপ ও সুপাবেসে সেভ
         try:
-            # Regex ব্যবহার করে শুধু ব্র্যাকেটের ভেতরের অংশটুকু নেওয়া (অতিরিক্ত টেক্সট বাদ দিতে)
             match = re.search(r'\[\s*(-?\d+(\.\d+)?\s*,\s*)*-?\d+(\.\d+)?\s*\]', groq_raw)
             if match:
                 learned_weights = json.loads(match.group(0))
                 
                 if len(learned_weights) == 24:
-                    # 'ml_weights' টেবিলে আপসার্ট করা
+                    # ✅ ফিক্সড: 'last_updated' পরিবর্তন করে 'updated_at' করা হয়েছে তোমার টেবিল অনুযায়ী
                     db_payload = {
                         "direction": direction, 
                         "weights": learned_weights,
-                        "last_updated": datetime.now(timezone.utc).isoformat()
+                        "updated_at": datetime.now(timezone.utc).isoformat()
                     }
                     supabase.table("ml_weights").upsert(db_payload).execute()
                     print(f"✅ AI Weights updated for {direction}!")
@@ -144,7 +143,7 @@ def train_model():
         except Exception as e:
             print(f"❌ Parsing failed for {direction}: {e}")
 
-        # ৫. কুলডাউন (Groq এর ফ্রি টিয়ারে রিকোয়েস্টের গ্যাপ জরুরি)
+        # ৫. কুলডাউন
         print("⏳ Cooling down for 20 seconds...")
         time.sleep(20)
 
