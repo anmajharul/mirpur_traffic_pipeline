@@ -45,13 +45,8 @@ CORRIDORS = {
 # 📂 BACKUP LOGIC (CSV EXPORTER)
 # ==========================================
 def export_to_csv(table_name, filename, data):
-    """
-    ডেটা ব্যাকআপ নেওয়ার জন্য সায়েন্টিফিক মেথড। 
-    এটি ফাইল না থাকলে হেডারসহ তৈরি করবে, আর থাকলে অ্যাপেন্ড (Append) করবে।
-    """
     file_path = os.path.join("backend", filename)
     file_exists = os.path.isfile(file_path)
-    
     try:
         with open(file_path, mode='a', newline='', encoding='utf-8') as f:
             writer = csv.DictWriter(f, fieldnames=data.keys())
@@ -62,10 +57,6 @@ def export_to_csv(table_name, filename, data):
         logging.error(f"❌ CSV Export Error for {table_name}: {e}")
 
 def backup_ml_weights():
-    """
-    ml_weights টেবিলটি ছোট (মাত্র ৪টি রো), তাই এটি প্রতিবার ফ্রেশ ওভাররাইট করা হয় 
-    যাতে গিটহাবে লেটেস্ট AI Weights থাকে।
-    """
     try:
         res = supabase.table("ml_weights").select("*").execute()
         if res.data:
@@ -109,7 +100,6 @@ def get_env_data():
 def collect():
     logging.info("🚀 Master Smart Mobility Pipeline Initiated...")
     env = get_env_data()
-    now_dt = datetime.now(BD_TZ)
     
     for name, coords in CORRIDORS.items():
         base, here, waze_min, dist = None, None, None, None
@@ -122,9 +112,24 @@ def collect():
         if not base or (not here and not waze_min): continue
             
         f_min = (0.4 * here) + (0.6 * waze_min) if here and waze_min else (here or waze_min)
-        f_spd = round(dist / (f_min/60.0), 2)
+        
+        # স্পিড ক্যালকুলেশন
+        f_spd = round(dist / (f_min/60.0), 2)  # Fused Speed (Main Speed)
         h_spd = round(dist / (here/60.0), 2) if here else 0.0
-        jam_factor = round(f_min / base, 2)
+        w_spd_kmh = round(dist / (waze_min/60.0), 2) if waze_min else 0.0
+        
+        # ==========================================
+        # 🚦 TRAFFIC ENGINEERING LOGIC FIX
+        # ==========================================
+        FREE_FLOW_SPEED = 35.0  # মিরপুর-১০ এর জন্য স্ট্যান্ডার্ড ফ্রি-ফ্লো স্পিড
+
+        # গাণিতিক কনজেশন ক্যালকুলেশন
+        if f_spd >= FREE_FLOW_SPEED:
+            congestion_percent = 0.0
+        else:
+            congestion_percent = round(max(0.0, ((FREE_FLOW_SPEED - f_spd) / FREE_FLOW_SPEED) * 100), 1)
+
+        jam_factor = round(FREE_FLOW_SPEED / f_spd, 2) if f_spd > 0 else 10.0
         s_idx = 3 if f_spd < 10 else (2 if f_spd < 15 else (1 if f_spd < 25 else 0))
         
         lat, lon = coords["origin"].split(",")
@@ -135,12 +140,12 @@ def collect():
             "geom": f"POINT({lon.strip()} {lat.strip()})",
             "speed_kmh": f_spd,
             "here_speed": h_spd,
-            "waze_speed": round(dist / (waze_min/60.0), 2) if waze_min else 0.0,
+            "waze_speed": w_spd_kmh,
             "inner_speed": f_spd,
             "outer_speed": round(h_spd * 1.1, 2),
             "base_eta_min": round(base, 1),
-            "congestion_percent": max(0.0, round((1 - (1/jam_factor)) * 100, 1)),
-            "jam_factor": jam_factor,
+            "congestion_percent": congestion_percent,  # ✅ FIXED
+            "jam_factor": jam_factor,                  # ✅ FIXED
             "bottleneck_ratio": round(f_spd / 25.0, 2),
             "severity_status": ["Free Flow", "Normal", "Moderate", "Critical"][s_idx],
             "severity_index": s_idx,
@@ -159,17 +164,14 @@ def collect():
         }
 
         try:
-            # ১. সুপাবেসে ইনসার্ট
             supabase.table("smart_eta_logs").insert(record).execute()
-            # ২. সিএসভি ব্যাকআপে অ্যাপেন্ড (Incremental Backup)
             export_to_csv("smart_eta_logs", "traffic_data_backup.csv", record)
-            logging.info(f"✅ Synced & Backed Up: {name}")
+            logging.info(f"✅ Synced & Backed Up: {name} (Speed: {f_spd} km/h, Congestion: {congestion_percent}%)")
         except Exception as e:
             logging.error(f"❌ Process Error: {e}")
         
         time.sleep(2)
 
-    # ৩. ML Weights ব্যাকআপ (Full Overwrite to keep latest)
     backup_ml_weights()
 
 if __name__ == "__main__":
