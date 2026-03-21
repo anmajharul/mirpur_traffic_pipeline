@@ -1,0 +1,5 @@
+created_at,direction,geom,speed_kmh,here_speed,waze_speed,inner_speed,outer_speed,base_eta_min,congestion_percent,jam_factor,bottleneck_ratio,severity_status,severity_index,data_confidence,rain_mm,temperature,wind_speed,visibility_km,uv_index,weather_condition,aqi,pm2_5,pm10,co_level,no2_level
+2026-03-21T17:50:52.475488+00:00,North (Mirpur-11 to 10),POINT(90.365406 23.818965),30.29,38.78,26.44,30.29,42.66,1.8,21.9,1.28,1.21,Free Flow,0,0.9,0.07,19.9,16.2,10.0,0.0,Patchy rain nearby,2,22.55,25.25,564.85,20.35
+2026-03-21T17:50:56.316106+00:00,South (Kazipara to 10),POINT(90.371857 23.799301),28.16,49.19,21.91,28.16,54.11,1.6,42.9,1.75,1.13,Free Flow,0,0.9,0.07,19.9,16.2,10.0,0.0,Patchy rain nearby,2,22.55,25.25,564.85,20.35
+2026-03-21T17:50:59.033995+00:00,East (Mirpur-14 to 10),POINT(90.386959 23.798457),27.88,50.21,21.5,27.88,55.23,3.1,44.4,1.8,1.12,Free Flow,0,0.9,0.07,19.9,16.2,10.0,0.0,Patchy rain nearby,2,22.55,25.25,564.85,20.35
+2026-03-21T17:51:01.696478+00:00,West (Mirpur-1 to 10),POINT(90.359814 23.802838),28.38,55.8,21.38,28.38,61.38,1.4,49.2,1.97,1.14,Free Flow,0,0.9,0.07,19.9,16.2,10.0,0.0,Patchy rain nearby,2,22.55,25.25,564.85,20.35
