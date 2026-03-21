@@ -1,0 +1,11 @@
+# আবর্জনা এবং লোকাল ফাইল
+node_modules/
+.tmp/
+.vscode/
+.env
+__pycache__/
+*.log
+
+# ওএস ফাইল
+.DS_Store
+Thumbs.db
