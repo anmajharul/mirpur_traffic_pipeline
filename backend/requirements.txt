@@ -1,3 +1,4 @@
 ﻿requests>=2.31.0
 supabase
 python-dotenv>=0.20.0
+numpy
