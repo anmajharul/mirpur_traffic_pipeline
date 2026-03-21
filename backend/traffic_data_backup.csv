@@ -6,3 +6,7 @@ Set-Content backend/traffic_data_backup.csv "timestamp,speed_kmh,congestion_perc
 2026-03-21T07:56:51.852879+00:00,25.85,35.4,0.0,30.7,Mirpur-10 Circle,South (Kazipara to 10),11.5,10.0,3.5,SE,Partly Cloudy,4,71.15,76.75,612.85,41.55,06:02 AM,06:10 PM,Waxing Crescent,25.85,26.25,Free Flow,0
 2026-03-21T07:56:51.852879+00:00,52.56,0.0,0.0,30.7,Mirpur-10 Circle,East (Mirpur-14 to 10),11.5,10.0,3.5,SE,Partly Cloudy,4,71.15,76.75,612.85,41.55,06:02 AM,06:10 PM,Waxing Crescent,52.56,61.7,Free Flow,0
 2026-03-21T07:56:51.852879+00:00,40.5,0.0,0.0,30.7,Mirpur-10 Circle,West (Mirpur-1 to 10),11.5,10.0,3.5,SE,Partly Cloudy,4,71.15,76.75,612.85,41.55,06:02 AM,06:10 PM,Waxing Crescent,40.5,61.82,Free Flow,0
+2026-03-21T08:31:09.454729+00:00,46.8,0.0,0.0,31.1,Mirpur-10 Circle,North (Mirpur-11 to 10),11.2,10.0,1.1,SE,Partly Cloudy,4,78.85,83.55,712.85,42.85,06:02 AM,06:10 PM,Waxing Crescent,46.8,39.54,Free Flow,0
+2026-03-21T08:31:09.454729+00:00,25.85,35.4,0.0,31.1,Mirpur-10 Circle,South (Kazipara to 10),11.2,10.0,1.1,SE,Partly Cloudy,4,78.85,83.55,712.85,42.85,06:02 AM,06:10 PM,Waxing Crescent,25.85,26.25,Free Flow,0
+2026-03-21T08:31:09.454729+00:00,52.56,0.0,0.0,31.1,Mirpur-10 Circle,East (Mirpur-14 to 10),11.2,10.0,1.1,SE,Partly Cloudy,4,78.85,83.55,712.85,42.85,06:02 AM,06:10 PM,Waxing Crescent,52.56,61.7,Free Flow,0
+2026-03-21T08:31:09.454729+00:00,40.5,0.0,0.0,31.1,Mirpur-10 Circle,West (Mirpur-1 to 10),11.2,10.0,1.1,SE,Partly Cloudy,4,78.85,83.55,712.85,42.85,06:02 AM,06:10 PM,Waxing Crescent,40.5,61.82,Free Flow,0
