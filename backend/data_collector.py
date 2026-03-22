@@ -23,7 +23,7 @@ logging.getLogger('WazeRouteCalculator.WazeRouteCalculator').setLevel(logging.WA
 # ==========================================
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-MAPBOX_TOKEN = os.getenv("MAPBOX_TOKEN") # HERE_KEY এর বদলে MAPBOX_TOKEN
+MAPBOX_TOKEN = os.getenv("MAPBOX_TOKEN") 
 WEATHER_KEY  = os.getenv("WEATHER_API_KEY")
 
 if not all([SUPABASE_URL, SUPABASE_KEY, MAPBOX_TOKEN, WEATHER_KEY]):
@@ -89,7 +89,6 @@ def export_to_csv(table_name, filename, data):
 # 🛰️ DATA RETRIEVAL (MAPBOX + WEATHER)
 # ==========================================
 def get_mapbox_traffic_data(origin, dest):
-    # Mapbox API চায় Lng,Lat ফরম্যাটে
     o_lat, o_lon = origin.split(",")
     d_lat, d_lon = dest.split(",")
     coords = f"{o_lon.strip()},{o_lat.strip()};{d_lon.strip()},{d_lat.strip()}"
@@ -137,7 +136,7 @@ def get_env_data():
 # 🧠 MAIN ENGINE (CONGESTION MODELING)
 # ==========================================
 def collect():
-    logging.info("🚀 Master Congestion Modeling Pipeline Initiated (Mapbox Engine)...")
+    logging.info("🚀 Master Congestion Modeling Pipeline Initiated (Mapbox 70:30 Engine)...")
     env = get_env_data()
     
     FREE_FLOW_SPEED = 35.0  # Dhaka Arterial Standard
@@ -185,8 +184,8 @@ def collect():
             logging.warning(f"⚠️ Mapbox reported unrealistic speed ({m_spd}). Capping to realistic max.")
             m_spd = w_spd if w_spd > 0 else MAX_DHAKA_SPEED
             
-        # 🧠 5. DATA FUSION (Mapbox + Waze)
-        f_spd_base = round((m_spd * 0.40) + (w_spd * 0.60), 2)
+        # 🧠 5. DATA FUSION (Optimized for Dhaka: 70% Mapbox / 30% Waze)
+        f_spd_base = round((m_spd * 0.70) + (w_spd * 0.30), 2)
         
         # 🚦 6. APPLY WEATHER PENALTY
         final_speed = round(f_spd_base * weather_penalty_factor, 2)
@@ -210,7 +209,7 @@ def collect():
             elif speed_diff <= 12: data_confidence = 0.80
             else: data_confidence = 0.65
         else:
-            data_confidence = 0.50 # Only one API returned data
+            data_confidence = 0.50 
 
         # Congestion Percent
         if final_speed >= FREE_FLOW_SPEED:
@@ -233,7 +232,7 @@ def collect():
             "direction": name,
             "geom": f"POINT({lon.strip()} {lat.strip()})",
             "speed_kmh": final_speed,
-            "mapbox_speed": m_spd, # Changed from here_speed
+            "mapbox_speed": m_spd, 
             "waze_speed": w_spd,
             "inner_speed": inner_speed,
             "outer_speed": outer_speed,
@@ -262,11 +261,11 @@ def collect():
             supabase.table("smart_eta_logs").insert(record).execute()
             # Sync to local CSV backup
             export_to_csv("smart_eta_logs", "traffic_data_backup.csv", record)
-            logging.info(f"✅ {name} | Speed: {final_speed} km/h | Jam Factor: {jam_factor} | Conf: {data_confidence}")
+            logging.info(f"✅ {name} | Speed: {final_speed} km/h (70:30 Fusion) | Jam Factor: {jam_factor}")
         except Exception as e:
             logging.error(f"❌ Database Insertion Error: {e}")
         
-        time.sleep(2) # Anti-spam delay
+        time.sleep(2)
 
 if __name__ == "__main__":
     collect()
