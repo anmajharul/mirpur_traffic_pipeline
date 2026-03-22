@@ -56,23 +56,31 @@ CORRIDORS = {
 }
 
 # ==========================================
-# 🧮 TIME SLOT CLASSIFICATION (Includes Friday/Jumu'ah)
+# 🧮 TIME SLOT CLASSIFICATION (Fri & Sat Weekend Support)
 # ==========================================
 def classify_time_slot(bd_time):
-    """Classifies current time into Dhaka's traffic flow slots with Friday override."""
-    is_friday = bd_time.weekday() == 4  # 4 is Friday
+    """Classifies current time into Dhaka's traffic flow slots with Weekend override."""
+    weekday = bd_time.weekday() # 4=Friday, 5=Saturday
     hour = bd_time.hour
     
-    if is_friday:
-        # Friday specific patterns
+    # 🕌 Special Friday Logic (Jumu'ah Prayer Peak)
+    if weekday == 4:
         if 12 <= hour < 14:
             return "Jumu'ah Prayer Peak"
         elif 16 <= hour < 21:
             return "Weekend Evening Peak"
         else:
             return "Weekend Off-Peak"
+            
+    # 🛋️ Saturday Logic (Weekend Pattern, no Prayer Peak)
+    elif weekday == 5:
+        if 16 <= hour < 21:
+            return "Weekend Evening Peak"
+        else:
+            return "Weekend Off-Peak"
+            
+    # 🚗 Regular Weekday patterns (Sun - Thu)
     else:
-        # Regular Weekday patterns
         if 8 <= hour < 11:
             return "Morning Peak"
         elif 11 <= hour < 16:
@@ -149,7 +157,7 @@ def get_env_data():
 # 🧠 MAIN ENGINE (CONGESTION MODELING)
 # ==========================================
 def collect():
-    logging.info("🚀 Master Congestion Modeling Pipeline Initiated (Mapbox 70:30 Engine)...")
+    logging.info("🚀 Master Congestion Modeling Pipeline Initiated (Fri/Sat Weekend Logic)...")
     env = get_env_data()
     
     FREE_FLOW_SPEED = 35.0  # Dhaka Arterial Standard
