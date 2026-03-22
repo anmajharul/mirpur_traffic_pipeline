@@ -23,10 +23,10 @@ logging.getLogger('WazeRouteCalculator.WazeRouteCalculator').setLevel(logging.WA
 # ==========================================
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-HERE_KEY     = os.getenv("HERE_API_KEY")
+MAPBOX_TOKEN = os.getenv("MAPBOX_TOKEN") # HERE_KEY এর বদলে MAPBOX_TOKEN
 WEATHER_KEY  = os.getenv("WEATHER_API_KEY")
 
-if not all([SUPABASE_URL, SUPABASE_KEY, HERE_KEY, WEATHER_KEY]):
+if not all([SUPABASE_URL, SUPABASE_KEY, MAPBOX_TOKEN, WEATHER_KEY]):
     logging.critical("❌ API Keys missing! Pipeline Terminated.")
     exit(1)
 
@@ -34,7 +34,7 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 session = requests.Session()
 
 # ==========================================
-# 📍 VALIDATED ARTERIAL CORRIDORS (UNIFIED DESTINATION)
+# 📍 VALIDATED ARTERIAL CORRIDORS
 # ==========================================
 CORRIDORS = {
     "North (Mirpur-11 to 10)": {
@@ -59,7 +59,6 @@ CORRIDORS = {
 # 🧮 TIME SLOT CLASSIFICATION
 # ==========================================
 def classify_time_slot(bd_time):
-    """Classifies current time into Dhaka's traffic flow slots."""
     hour = bd_time.hour
     if 8 <= hour < 11:
         return "Morning Peak"
@@ -69,19 +68,6 @@ def classify_time_slot(bd_time):
         return "Evening Peak"
     else:
         return "Off-Peak / Night"
-
-# ==========================================
-# 🧮 3-POINT WEIGHTED FUSION ALGORITHM
-# ==========================================
-def calculate_fused_speed(here_speed, waze_speed, inner_speed, outer_speed):
-    # Weights for API Fusion (Total = 1.0) calibrated for Dhaka
-    w_here = 0.20
-    w_waze = 0.30
-    w_local = 0.50
-
-    local_avg_speed = (inner_speed + outer_speed) / 2.0
-    fused_speed = (here_speed * w_here) + (waze_speed * w_waze) + (local_avg_speed * w_local)
-    return round(fused_speed, 2)
 
 # ==========================================
 # 📂 BACKUP LOGIC (CSV EXPORTER)
@@ -100,25 +86,29 @@ def export_to_csv(table_name, filename, data):
         logging.error(f"❌ CSV Export Error: {e}")
 
 # ==========================================
-# 🛰️ DATA RETRIEVAL
+# 🛰️ DATA RETRIEVAL (MAPBOX + WEATHER)
 # ==========================================
-def get_traffic_data(origin, dest):
-    h_url = "https://router.hereapi.com/v8/routes"
-    params = {
-        "apiKey": HERE_KEY, 
-        "transportMode": "car", 
-        "origin": origin, 
-        "destination": dest, 
-        "return": "summary,travelSummary", 
-        "traffic": "enabled"
-    }
+def get_mapbox_traffic_data(origin, dest):
+    # Mapbox API চায় Lng,Lat ফরম্যাটে
+    o_lat, o_lon = origin.split(",")
+    d_lat, d_lon = dest.split(",")
+    coords = f"{o_lon.strip()},{o_lat.strip()};{d_lon.strip()},{d_lat.strip()}"
+    
+    url = f"https://api.mapbox.com/directions/v5/mapbox/driving-traffic/{coords}"
+    params = {"access_token": MAPBOX_TOKEN}
+    
     try:
-        h_res = session.get(h_url, params=params, timeout=12).json()
-        summary = h_res["routes"][0]["sections"][0]["travelSummary"]
-        return summary["baseDuration"]/60.0, summary["duration"]/60.0, summary["length"]/1000.0
+        res = session.get(url, params=params, timeout=12).json()
+        if "routes" in res and len(res["routes"]) > 0:
+            route = res["routes"][0]
+            duration_min = route["duration"] / 60.0
+            dist_km = route["distance"] / 1000.0
+            return duration_min, dist_km
+        else:
+            return None, None
     except Exception as e:
-        logging.error(f"⚠️ HERE API Error: {e}")
-        return None, None, None
+        logging.error(f"⚠️ Mapbox API Error: {e}")
+        return None, None
 
 def get_env_data():
     url = f"http://api.weatherapi.com/v1/current.json?key={WEATHER_KEY}&q=23.808,90.368&aqi=yes"
@@ -144,30 +134,33 @@ def get_env_data():
         return {}
 
 # ==========================================
-# 🧠 MAIN ENGINE (DATA-DRIVEN CONGESTION MODEL)
+# 🧠 MAIN ENGINE (CONGESTION MODELING)
 # ==========================================
 def collect():
-    logging.info("🚀 Master Congestion Modeling Pipeline Initiated...")
+    logging.info("🚀 Master Congestion Modeling Pipeline Initiated (Mapbox Engine)...")
     env = get_env_data()
+    
     FREE_FLOW_SPEED = 35.0  # Dhaka Arterial Standard
+    MAX_DHAKA_SPEED = 38.0  # API Sanity Check Threshold
     
     # ⏱️ 1. TIME SLOT AUTOMATION
     bd_timezone = timezone(timedelta(hours=6))
     current_time_bd = datetime.now(bd_timezone)
     current_slot = classify_time_slot(current_time_bd)
 
-    # 🌧️ 2. DYNAMIC WEATHER OVERRIDE & SIMULATION
+    # 🌧️ 2. DYNAMIC WEATHER OVERRIDE
     live_rain_mm = env.get("rain", 0.0) if env.get("rain") is not None else 0.0
     is_simulation_mode = False 
     effective_rain_rate = 100.0 if is_simulation_mode else live_rain_mm
 
-    # 📉 3. BOUNDED LINEAR DECAY MODEL
+    # 📉 3. BOUNDED LINEAR DECAY MODEL (Weather)
     v_min_ratio = 0.65
     v_max_ratio = 1.0
     weather_penalty_factor = round(max(v_min_ratio, v_max_ratio - (0.0035 * effective_rain_rate)), 3)
 
     for name, coords in CORRIDORS.items():
-        base, here, dist = get_traffic_data(coords["origin"], coords["dest"])
+        # Get Mapbox Data
+        m_min, dist = get_mapbox_traffic_data(coords["origin"], coords["dest"])
         w_min = None
         
         try:
@@ -179,37 +172,60 @@ def collect():
         except Exception as e:
             logging.warning(f"⚠️ Waze Error for {name}: {e}")
 
-        if not base or not here: 
-            logging.warning(f"⏭️ Skipping {name} due to missing primary data.")
+        if not m_min: 
+            logging.warning(f"⏭️ Skipping {name} due to missing Mapbox data.")
             continue
             
-        # ১. Raw API Speeds
-        h_spd = round(dist / (here/60.0), 2)
-        w_spd_kmh = round(dist / (w_min/60.0), 2) if w_min else h_spd
+        # 🚗 4. RAW SPEEDS & SANITY CHECK
+        m_spd = round(dist / (m_min/60.0), 2)
+        w_spd = round(dist / (w_min/60.0), 2) if w_min else m_spd
         
-        # ২. Local Lane Speed Estimation
-        inner_speed = round(w_spd_kmh * 1.15, 2)
-        outer_speed = round(w_spd_kmh * 0.80, 2)
+        # Filter Mapbox Reference Speed Error (60+ km/h)
+        if m_spd > MAX_DHAKA_SPEED:
+            logging.warning(f"⚠️ Mapbox reported unrealistic speed ({m_spd}). Capping to realistic max.")
+            m_spd = w_spd if w_spd > 0 else MAX_DHAKA_SPEED
+            
+        # 🧠 5. DATA FUSION (Mapbox + Waze)
+        f_spd_base = round((m_spd * 0.40) + (w_spd * 0.60), 2)
         
-        # ৩. 3-Point Fusion Equation (Base Speed)
-        f_spd_base = calculate_fused_speed(h_spd, w_spd_kmh, inner_speed, outer_speed)
-
-        # 🚦 4. APPLY WEATHER PENALTY
+        # 🚦 6. APPLY WEATHER PENALTY
         final_speed = round(f_spd_base * weather_penalty_factor, 2)
 
-        # 5. TRAFFIC ENGINEERING CONGESTION METRICS
+        # -----------------------------------------------------
+        # 🧪 7. SYNTHETIC DATA GENERATION (THESIS HEURISTICS)
+        # -----------------------------------------------------
+        
+        # Inner & Outer Lane Speeds (Side Friction Logic)
+        outer_speed = round(final_speed * 0.85, 2)
+        inner_speed = round(min(MAX_DHAKA_SPEED, final_speed * 1.15), 2)
+
+        # Jam Factor (0-10 Scale)
+        jf_raw = ((FREE_FLOW_SPEED - final_speed) / FREE_FLOW_SPEED) * 10
+        jam_factor = round(max(0.0, min(10.0, jf_raw)), 2)
+
+        # Data Confidence Score (Based on sensor variance)
+        if m_spd > 0 and w_spd > 0:
+            speed_diff = abs(m_spd - w_spd)
+            if speed_diff <= 5: data_confidence = 0.95
+            elif speed_diff <= 12: data_confidence = 0.80
+            else: data_confidence = 0.65
+        else:
+            data_confidence = 0.50 # Only one API returned data
+
+        # Congestion Percent
         if final_speed >= FREE_FLOW_SPEED:
             congestion_percent = 0.0
         else:
             congestion_percent = round(max(0.0, ((FREE_FLOW_SPEED - final_speed) / FREE_FLOW_SPEED) * 100), 1)
 
-        jam_factor = round(FREE_FLOW_SPEED / final_speed, 2) if final_speed > 0 else 10.0
+        # Metrics
         s_idx = 3 if final_speed < 10 else (2 if final_speed < 15 else (1 if final_speed < 25 else 0))
-        
+        base_eta = round((dist / FREE_FLOW_SPEED) * 60.0, 1)
+
         # Parse Geometry
         lat, lon = coords["origin"].split(",")
         
-        # Final Record Generation
+        # 📦 8. FINAL RECORD GENERATION
         record = {
             "created_at": current_time_bd.isoformat(),
             "time_slot": current_slot,
@@ -217,17 +233,17 @@ def collect():
             "direction": name,
             "geom": f"POINT({lon.strip()} {lat.strip()})",
             "speed_kmh": final_speed,
-            "here_speed": h_spd,
-            "waze_speed": w_spd_kmh,
+            "mapbox_speed": m_spd, # Changed from here_speed
+            "waze_speed": w_spd,
             "inner_speed": inner_speed,
             "outer_speed": outer_speed,
-            "base_eta_min": round(base, 1),
+            "base_eta_min": base_eta,
             "congestion_percent": congestion_percent,
             "jam_factor": jam_factor,
             "bottleneck_ratio": round(final_speed / 25.0, 2),
             "severity_status": ["Free Flow", "Normal", "Moderate", "Critical"][s_idx],
             "severity_index": s_idx,
-            "data_confidence": 0.9 if here and w_min else 0.5,
+            "data_confidence": data_confidence,
             "rain_mm": effective_rain_rate,
             "temperature": env.get("temp", 0.0),
             "wind_speed": env.get("w_spd", 0.0),
@@ -246,7 +262,7 @@ def collect():
             supabase.table("smart_eta_logs").insert(record).execute()
             # Sync to local CSV backup
             export_to_csv("smart_eta_logs", "traffic_data_backup.csv", record)
-            logging.info(f"✅ {name} | Slot: {current_slot} | Speed: {final_speed} km/h | Rain: {effective_rain_rate}mm")
+            logging.info(f"✅ {name} | Speed: {final_speed} km/h | Jam Factor: {jam_factor} | Conf: {data_confidence}")
         except Exception as e:
             logging.error(f"❌ Database Insertion Error: {e}")
         
