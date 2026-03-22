@@ -1,4 +1,4 @@
-name: 📊 Traffic Data Research Pipeline (5-Min Interval)
+name: 01. Traffic Data Research Pipeline (5-Min Interval)
 
 on:
   push:
@@ -44,12 +44,12 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-          HERE_API_KEY: ${{ secrets.HERE_API_KEY }}
+          MAPBOX_TOKEN: ${{ secrets.MAPBOX_TOKEN }}
           WEATHER_API_KEY: ${{ secrets.WEATHER_API_KEY }}
         run: python backend/data_collector.py
 
       - name: 5. Synchronize CSV Backup to Repository
-        # সুপাবেসে ডেটা সফলভাবে সেভ হওয়ার পর এই স্টেপটি ফাইলটিকে গিটহাবে লক করে দেবে
+        # সুপাবেসে ডেটা সফলভাবে সেভ হওয়ার পর এই স্টেপটি ফাইলটিকে গিটহাবে লক করে দেবে
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
@@ -57,11 +57,11 @@ jobs:
           # শুধুমাত্র ব্যাকআপ ফাইলটি ট্র্যাক করা
           git add backend/traffic_data_backup.csv || echo "No CSV change detected"
           
-          # [skip ci] ব্যবহার করা হয়েছে যাতে অটো-কমিট থেকে আবার অ্যাকশন ট্রিগার না হয়
+          # [skip ci] ব্যবহার করা হয়েছে যাতে অটো-কমিট থেকে আবার অ্যাকশন ট্রিগার না হয়
           git commit -m "📊 Supabase-to-CSV Sync: $(date) [skip ci]" || exit 0
           
           # কনফ্লিক্ট এড়ানোর জন্য 'theirs' স্ট্র্যাটেজি ব্যবহার করা হচ্ছে
-          # এর ফলে সার্ভারের কপি এবং লোকাল কপির মধ্যে সামঞ্জস্য বজায় থাকবে
+          # এর ফলে সার্ভারের কপি এবং লোকাল কপির মধ্যে সামঞ্জস্য বজায় থাকবে
           git pull origin main --rebase -X theirs
           
           git push origin main
