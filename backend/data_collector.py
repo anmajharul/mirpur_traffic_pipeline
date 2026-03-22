@@ -56,18 +56,31 @@ CORRIDORS = {
 }
 
 # ==========================================
-# 🧮 TIME SLOT CLASSIFICATION
+# 🧮 TIME SLOT CLASSIFICATION (Includes Friday/Jumu'ah)
 # ==========================================
 def classify_time_slot(bd_time):
+    """Classifies current time into Dhaka's traffic flow slots with Friday override."""
+    is_friday = bd_time.weekday() == 4  # 4 is Friday
     hour = bd_time.hour
-    if 8 <= hour < 11:
-        return "Morning Peak"
-    elif 11 <= hour < 16:
-        return "Midday"
-    elif 16 <= hour < 20:
-        return "Evening Peak"
+    
+    if is_friday:
+        # Friday specific patterns
+        if 12 <= hour < 14:
+            return "Jumu'ah Prayer Peak"
+        elif 16 <= hour < 21:
+            return "Weekend Evening Peak"
+        else:
+            return "Weekend Off-Peak"
     else:
-        return "Off-Peak / Night"
+        # Regular Weekday patterns
+        if 8 <= hour < 11:
+            return "Morning Peak"
+        elif 11 <= hour < 16:
+            return "Midday"
+        elif 16 <= hour < 20:
+            return "Evening Peak"
+        else:
+            return "Off-Peak / Night"
 
 # ==========================================
 # 📂 BACKUP LOGIC (CSV EXPORTER)
@@ -261,7 +274,7 @@ def collect():
             supabase.table("smart_eta_logs").insert(record).execute()
             # Sync to local CSV backup
             export_to_csv("smart_eta_logs", "traffic_data_backup.csv", record)
-            logging.info(f"✅ {name} | Speed: {final_speed} km/h (70:30 Fusion) | Jam Factor: {jam_factor}")
+            logging.info(f"✅ {name} | Slot: {current_slot} | Speed: {final_speed} km/h")
         except Exception as e:
             logging.error(f"❌ Database Insertion Error: {e}")
         
