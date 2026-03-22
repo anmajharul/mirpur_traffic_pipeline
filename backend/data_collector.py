@@ -3,7 +3,7 @@ import requests
 import time
 import logging
 import csv
-import math  # গাণিতিক ক্যালকুলেশনের জন্য প্রয়োজনীয়
+import math  # গাণিতিক ক্যালকুলেশনের জন্য প্রয়োজনীয়
 from datetime import datetime, timezone, timedelta
 import numpy as np
 import WazeRouteCalculator
@@ -41,6 +41,19 @@ CORRIDORS = {
     "East (Mirpur-14 to 10)": {"origin": "23.798457,90.386959", "dest": "23.808940,90.368850"},
     "West (Mirpur-1 to 10)":  {"origin": "23.802838,90.359814", "dest": "23.808900,90.367600"}
 }
+
+# ==========================================
+# 🧮 3-POINT WEIGHTED FUSION ALGORITHM
+# ==========================================
+def calculate_fused_speed(here_speed, waze_speed, inner_speed, outer_speed):
+    # Weights for API Fusion (Total = 1.0)
+    w_here = 0.20
+    w_waze = 0.30
+    w_local = 0.50
+
+    local_avg_speed = (inner_speed + outer_speed) / 2.0
+    fused_speed = (here_speed * w_here) + (waze_speed * w_waze) + (local_avg_speed * w_local)
+    return round(fused_speed, 2)
 
 # ==========================================
 # 📂 BACKUP LOGIC (CSV EXPORTER)
@@ -96,19 +109,19 @@ def get_env_data():
     except: return {}
 
 # ==========================================
-# 🧠 MAIN ENGINE (MNL INTEGRATED)
+# 🧠 MAIN ENGINE (MNL + FUSION INTEGRATED)
 # ==========================================
 def collect():
     logging.info("🚀 Master Smart Mobility Pipeline Initiated...")
     env = get_env_data()
     
     # --- DCM CONSTANTS (BUBT Student Survey Model) ---
-    DIST_KM = 5.0           # Fixed commute distance for analysis
-    COST_BUS = 20.0         # Estimated fare in BDT
-    COST_METRO = 40.0       # Estimated fare in BDT
-    TIME_METRO_FIXED = 10.0 # Consistent Metro reliability (min)
-    STUDENT_DUMMY = 1       # Context: BUBT Student Population
-    FREE_FLOW_SPEED = 35.0  # Standard free-flow speed for Mirpur-10
+    DIST_KM = 5.0
+    COST_BUS = 20.0
+    COST_METRO = 40.0
+    TIME_METRO_FIXED = 10.0
+    STUDENT_DUMMY = 1
+    FREE_FLOW_SPEED = 35.0
     
     for name, coords in CORRIDORS.items():
         base, here, waze_min, dist = None, None, None, None
@@ -120,24 +133,25 @@ def collect():
 
         if not base or (not here and not waze_min): continue
             
-        f_min = (0.4 * here) + (0.6 * waze_min) if here and waze_min else (here or waze_min)
-        
-        # স্পিড ক্যালকুলেশন
-        f_spd = round(dist / (f_min/60.0), 2)  # Fused Speed (Main Speed)
+        # ১. Raw API Speeds
         h_spd = round(dist / (here/60.0), 2) if here else 0.0
         w_spd_kmh = round(dist / (waze_min/60.0), 2) if waze_min else 0.0
+        
+        # ২. Local Lane Speed Estimation (Dhaka Context)
+        inner_speed = round(w_spd_kmh * 1.15, 2) if w_spd_kmh else h_spd
+        outer_speed = round(w_spd_kmh * 0.80, 2) if w_spd_kmh else h_spd
+        
+        # ৩. 3-Point Fusion Equation
+        f_spd = calculate_fused_speed(h_spd, w_spd_kmh, inner_speed, outer_speed)
 
         # ==========================================
         # 📈 DISCRETE CHOICE MODEL (MNL) IMPLEMENTATION
         # ==========================================
-        # ১. বাসের জন্য রিয়েল-টাইম ট্রাভেল টাইম ক্যালকুলেশন
         bus_travel_time = round((DIST_KM / f_spd) * 60, 2) if f_spd > 0 else 999
         
-        # ২. ইউটিলিটি ফাংশন ক্যালকুলেশন (MNL Theory)
         u_bus = -0.5 + (-0.05 * bus_travel_time) + (-0.01 * COST_BUS)
         u_metro = -0.01 + (-0.02 * TIME_METRO_FIXED) + (-0.03 * COST_METRO) + (0.5 * STUDENT_DUMMY)
         
-        # ৩. লগিট প্রোবাবিলিটি ক্যালকুলেশন
         try:
             exp_u_bus = math.exp(u_bus)
             exp_u_metro = math.exp(u_metro)
@@ -161,7 +175,7 @@ def collect():
         
         lat, lon = coords["origin"].split(",")
         
-        # Final Record Generation
+        # Final Record Generation (Merged Cleanly)
         record = {
             "created_at": datetime.now(timezone.utc).isoformat(),
             "direction": name,
@@ -169,13 +183,13 @@ def collect():
             "speed_kmh": f_spd,
             "here_speed": h_spd,
             "waze_speed": w_spd_kmh,
-            "inner_speed": f_spd,
-            "outer_speed": round(h_spd * 1.1, 2),
+            "inner_speed": inner_speed,
+            "outer_speed": outer_speed,
             "base_eta_min": round(base, 1),
             "congestion_percent": congestion_percent,
-            "prob_metro": prob_metro,      # ✅ LIVE Choice
-            "prob_bus": prob_bus,          # ✅ LIVE Choice
-            "utility_bus": round(u_bus, 3), # ✅ For Research Trace
+            "prob_metro": prob_metro,
+            "prob_bus": prob_bus,
+            "utility_bus": round(u_bus, 3),
             "utility_metro": round(u_metro, 3),
             "jam_factor": jam_factor,
             "bottleneck_ratio": round(f_spd / 25.0, 2),
@@ -198,7 +212,7 @@ def collect():
         try:
             supabase.table("smart_eta_logs").insert(record).execute()
             export_to_csv("smart_eta_logs", "traffic_data_backup.csv", record)
-            logging.info(f"✅ Synced: {name} | Metro: {prob_metro}% vs Bus: {prob_bus}% (Speed: {f_spd} km/h)")
+            logging.info(f"✅ Synced: {name} | Fused: {f_spd} km/h (Prob Metro: {prob_metro}%)")
         except Exception as e:
             logging.error(f"❌ Record Process Error: {e}")
         
