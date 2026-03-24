@@ -28,22 +28,10 @@ session = requests.Session()
 # 📍 VALIDATED ARTERIAL CORRIDORS (Exact Stop-lines)
 # ==========================================
 CORRIDORS = {
-    "North (Mirpur-11 to 10)": {
-        "origin": "23.818833,90.365443",  # Mirpur-11 Metro Station
-        "dest":   "23.807247,90.368658"   # Exact Stop-line (Begum Rokeya Ave, Inbound)
-    },
-    "South (Kazipara to 10)": {
-        "origin": "23.795476,90.373516",  # Shewrapara, Begum Rokeya Ave
-        "dest":   "23.806925,90.368497"   # Exact Stop-line (Begum Rokeya Ave, Inbound)
-    },
-    "East (Mirpur-14 to 10)": {
-        "origin": "23.801368,90.380476",  # Near Police Staff College, Ibrahimpur
-        "dest":   "23.807028,90.368790"   # Exact Stop-line (Mirpur-14 Approach, Inbound)
-    },
-    "West (Mirpur-1 to 10)": {
-        "origin": "23.801584,90.357905",  # Mirpur Rd, Mirpur-1
-        "dest":   "23.807144,90.368412"   # Exact Stop-line (Mirpur Rd, Inbound)
-    }
+    "North (Mirpur-11 to 10)": {"origin": "23.818833,90.365443", "dest": "23.807247,90.368658"},
+    "South (Kazipara to 10)": {"origin": "23.795476,90.373516", "dest": "23.806925,90.368497"},
+    "East (Mirpur-14 to 10)": {"origin": "23.801368,90.380476", "dest": "23.807028,90.368790"},
+    "West (Mirpur-1 to 10)": {"origin": "23.801584,90.357905", "dest": "23.807144,90.368412"}
 }
 
 # ==========================================
@@ -85,8 +73,8 @@ def get_env_data():
 # ==========================================
 # 🧠 MAIN ENGINE (CONGESTION MODELING)
 # ==========================================
-FREE_FLOW_SPEED = 40.5  # Formally calibrated for Mirpur-10
-MAX_DHAKA_SPEED = 45.0  # Physical ceiling
+FREE_FLOW_SPEED = 40.5  
+MAX_DHAKA_SPEED = 45.0  
 
 def collect():
     logging.info("🚀 Master Congestion Modeling Pipeline Initiated...")
@@ -94,7 +82,6 @@ def collect():
     bd_time = datetime.now(timezone(timedelta(hours=6)))
     current_slot = classify_time_slot(bd_time)
     
-    # Weather penalty
     live_rain_mm = env.get("rain", 0.0) if env.get("rain") is not None else 0.0
     weather_penalty_factor = round(max(0.65, 1.0 - (0.0035 * live_rain_mm)), 3)
 
@@ -125,40 +112,34 @@ def collect():
         except Exception as e:
             logging.warning(f"⚠️ Waze Error for {name}: {e}")
 
-        # 🚗 3. RAW SPEEDS & CROSS VALIDATION
         m_spd = round(dist_km / (m_min / 60.0), 2)
         w_spd = round(dist_km / (w_min / 60.0), 2) if w_min and w_min > 0 else m_spd
 
         if m_spd > MAX_DHAKA_SPEED:
             if w_min and w_spd > MAX_DHAKA_SPEED:
-                logging.info(f"🌙 High-Speed Confirmed (Mapbox: {m_spd}, Waze: {w_spd}).")
+                logging.info(f"🌙 High-Speed Confirmed.")
             else:
-                logging.warning(f"⚠️ Mapbox Glitch Detected ({m_spd} km/h). Capping...")
                 m_spd = w_spd if (0 < w_spd <= MAX_DHAKA_SPEED) else MAX_DHAKA_SPEED
 
-        # 🧠 4. DATA FUSION (Unbiased Mean) + WEATHER PENALTY
         f_spd_base = round((m_spd + w_spd) / 2.0, 2)
         final_speed = round(f_spd_base * weather_penalty_factor, 2)
 
-        # 📈 5. DATA CONFIDENCE (Statistical Variance via RPD)
         if m_spd > 0 and w_spd > 0:
             rpd = (abs(m_spd - w_spd) / f_spd_base) * 100.0
             data_confidence = round(max(0.0, 100.0 - rpd), 2)
         else:
             data_confidence = 50.0
 
-        # 📊 6. CORE METRICS
         jam_factor = round(max(0.0, min(10.0, ((FREE_FLOW_SPEED - final_speed) / FREE_FLOW_SPEED) * 10)), 2)
         congestion_percent = round(max(0.0, ((FREE_FLOW_SPEED - final_speed) / FREE_FLOW_SPEED) * 100), 1) if final_speed < FREE_FLOW_SPEED else 0.0
         
         s_idx = 3 if final_speed < 10 else (2 if final_speed < 15 else (1 if final_speed < 25 else 0))
         base_eta = round((dist_km / FREE_FLOW_SPEED) * 60.0, 1)
 
-        # 📦 7. SUPABASE FULL SCHEMA INGESTION
+        # 📦 7. CLEANED PAYLOAD (is_simulation REMOVED)
         record = {
             "created_at": bd_time.isoformat(),
             "time_slot": current_slot,
-            "is_simulation": False,
             "direction": name,
             "geom": f"POINT({o_lon.strip()} {o_lat.strip()})",
             "destination": f"POINT({d_lon.strip()} {d_lat.strip()})",
@@ -187,7 +168,7 @@ def collect():
 
         try:
             supabase.table("smart_eta_logs").insert(record).execute()
-            logging.info(f"✅ {name} | Speed: {final_speed} km/h | Jam: {jam_factor}/10")
+            logging.info(f"✅ {name} | Speed: {final_speed} km/h")
         except Exception as e:
             logging.error(f"❌ Database Insertion Error: {e}")
         
