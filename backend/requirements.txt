@@ -1,6 +1,0 @@
-﻿requests>=2.31.0
-supabase>=2.3.0
-numpy>=1.24.0
-WazeRouteCalculator>=0.15
-python-dotenv>=1.0.0
-holidays>=0.40
