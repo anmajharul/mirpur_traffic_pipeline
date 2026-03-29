@@ -2,12 +2,14 @@ import json
 import logging
 import os
 import sys
+from functools import lru_cache
 from pathlib import Path
 from threading import Lock
 from time import monotonic
 from uuid import uuid4
 
 from fastapi import FastAPI, Header, HTTPException
+from supabase import create_client
 
 
 ROOT_DIR = Path(__file__).resolve().parent
@@ -16,7 +18,7 @@ BACKEND_DIR = ROOT_DIR / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from pipeline import maybe_retrain, run_collection_cycle, supabase  # type: ignore  # noqa: E402
+from config import SUPABASE_KEY, SUPABASE_URL  # type: ignore  # noqa: E402
 
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -48,6 +50,17 @@ def log_event(event: str, **fields):
         **fields,
     }
     logging.info(json.dumps(payload, sort_keys=True, default=str))
+
+
+@lru_cache(maxsize=1)
+def _get_supabase_client():
+    return create_client(SUPABASE_URL, SUPABASE_KEY)
+
+
+def _get_pipeline_functions():
+    from pipeline import maybe_retrain, run_collection_cycle  # type: ignore
+
+    return maybe_retrain, run_collection_cycle
 
 
 def _extract_bearer_token(authorization: str | None) -> str | None:
@@ -86,6 +99,7 @@ def _enforce_rate_limit():
 
 
 def _acquire_distributed_lock(owner: str) -> None:
+    supabase = _get_supabase_client()
     try:
         response = supabase.rpc(
             "try_acquire_pipeline_run_lock",
@@ -109,6 +123,7 @@ def _acquire_distributed_lock(owner: str) -> None:
 
 
 def _release_distributed_lock(owner: str) -> None:
+    supabase = _get_supabase_client()
     try:
         supabase.rpc(
             "release_pipeline_run_lock",
@@ -176,6 +191,7 @@ def trigger_pipeline(authorization: str | None = Header(default=None)):
     started_at = monotonic()
 
     try:
+        maybe_retrain, run_collection_cycle = _get_pipeline_functions()
         _acquire_distributed_lock(owner)
         distributed_lock_acquired = True
 

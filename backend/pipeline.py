@@ -28,9 +28,6 @@ from datetime import datetime, timezone, timedelta
 from typing import Optional
 
 from config import CORRIDORS, MAPBOX_TOKEN, SUPABASE_URL, SUPABASE_KEY  # type: ignore
-from data_collector import collect  # type: ignore
-from trainer_xgb import train_model, forecast_24h  # type: ignore
-from data_loader import load_and_preprocess_data  # type: ignore
 from supabase import create_client  # type: ignore
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
@@ -131,6 +128,7 @@ def run_collection_cycle():
 
     success_count = 0
     fail_count = 0
+    from data_collector import collect  # type: ignore
 
     for name, coords in CORRIDORS.items():
         try:
@@ -195,6 +193,8 @@ def maybe_retrain():
             }
 
     logging.info("[PIPELINE] Triggering model retraining...")
+    from trainer_xgb import train_model, forecast_24h  # type: ignore
+    from data_loader import load_and_preprocess_data  # type: ignore
 
     try:
         model = train_model(
