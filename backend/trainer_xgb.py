@@ -289,7 +289,10 @@ def walk_forward_cv(
 # ======================================================
 # FULL TRAINING
 # ======================================================
-def train_model() -> Optional[xgb.XGBRegressor]:
+def train_model(
+    training_cutoff_utc: Optional[datetime] = None,
+    days_lookback: int = 30
+) -> Optional[xgb.XGBRegressor]:
     """
     Full training pipeline:
     1. Load data (with leakage columns already removed by data_loader)
@@ -299,7 +302,10 @@ def train_model() -> Optional[xgb.XGBRegressor]:
     5. Final model fit on all data
     6. Store metrics in DB
     """
-    df = load_and_preprocess_data(days_lookback=30)
+    df = load_and_preprocess_data(
+        days_lookback=days_lookback,
+        cutoff_time_utc=training_cutoff_utc,
+    )
     if df.empty or len(df) < 100:
         logging.warning("[TRAINER] Insufficient data — skipping training")
         return None

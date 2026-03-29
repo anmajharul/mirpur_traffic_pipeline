@@ -37,6 +37,8 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s: %(mes
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 BDT = timezone(timedelta(hours=6))
+TRAINING_WINDOW_DAYS = 30
+MODEL_FAMILY = "xgboost"
 
 
 # ======================================================
@@ -188,21 +190,32 @@ def maybe_retrain():
                 "reason": "cooldown",
                 "last_training_time": last_train_time.isoformat(),
                 "hours_since_last_train": round(hours_since, 3),
+                "training_window_days": TRAINING_WINDOW_DAYS,
+                "model_family": MODEL_FAMILY,
             }
 
     logging.info("[PIPELINE] Triggering model retraining...")
 
     try:
-        model = train_model()
+        model = train_model(
+            training_cutoff_utc=now,
+            days_lookback=TRAINING_WINDOW_DAYS,
+        )
         if model is None:
             logging.warning("[PIPELINE] Training returned None — insufficient data")
             return {
                 "trained": False,
                 "reason": "insufficient_data",
+                "training_cutoff_utc": now.isoformat(),
+                "training_window_days": TRAINING_WINDOW_DAYS,
+                "model_family": MODEL_FAMILY,
             }
 
         # Generate 24h forecast
-        df = load_and_preprocess_data(days_lookback=30)
+        df = load_and_preprocess_data(
+            days_lookback=TRAINING_WINDOW_DAYS,
+            cutoff_time_utc=now,
+        )
         if not df.empty:
             forecasts = forecast_24h(model, df)
             for fc in forecasts:
@@ -214,6 +227,9 @@ def maybe_retrain():
                 "trained": True,
                 "forecast_count": len(forecasts),
                 "trained_at": now.isoformat(),
+                "training_cutoff_utc": now.isoformat(),
+                "training_window_days": TRAINING_WINDOW_DAYS,
+                "model_family": MODEL_FAMILY,
             }
 
         return {
@@ -221,6 +237,9 @@ def maybe_retrain():
             "forecast_count": 0,
             "trained_at": now.isoformat(),
             "reason": "empty_dataframe",
+            "training_cutoff_utc": now.isoformat(),
+            "training_window_days": TRAINING_WINDOW_DAYS,
+            "model_family": MODEL_FAMILY,
         }
 
     except Exception as e:
@@ -229,6 +248,9 @@ def maybe_retrain():
             "trained": False,
             "reason": "error",
             "error": str(e),
+            "training_cutoff_utc": now.isoformat(),
+            "training_window_days": TRAINING_WINDOW_DAYS,
+            "model_family": MODEL_FAMILY,
         }
 
 

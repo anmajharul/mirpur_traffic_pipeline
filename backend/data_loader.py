@@ -40,6 +40,7 @@ import pandas as pd
 import logging
 from supabase import create_client
 from datetime import datetime, timezone, timedelta
+from typing import Optional
 
 from config import SUPABASE_URL, SUPABASE_KEY
 
@@ -134,7 +135,10 @@ def fetch_direction_data(direction: str, days_lookback: int = 14) -> pd.DataFram
 # -------------------------------------------------
 # FULL DATASET (ML READY)
 # -------------------------------------------------
-def load_and_preprocess_data(days_lookback: int = 30) -> pd.DataFrame:
+def load_and_preprocess_data(
+    days_lookback: int = 30,
+    cutoff_time_utc: Optional[datetime] = None
+) -> pd.DataFrame:
     """
     Load full dataset for ML training with all leakage columns removed.
 
@@ -150,15 +154,19 @@ def load_and_preprocess_data(days_lookback: int = 30) -> pd.DataFrame:
         Empty DataFrame on any failure.
     """
     cutoff_date = (datetime.utcnow() - timedelta(days=days_lookback)).isoformat()
+    effective_cutoff_utc = cutoff_time_utc.astimezone(timezone.utc) if cutoff_time_utc else datetime.now(timezone.utc)
 
     try:
-        response = (
+        query = (
             supabase
             .table("smart_eta_logs")
             .select("*")
             .gte("created_at", cutoff_date)
-            .execute()
         )
+        if cutoff_time_utc is not None:
+            query = query.lt("created_at", effective_cutoff_utc.isoformat())
+
+        response = query.execute()
 
         data = response.data
         if not data:
@@ -172,8 +180,7 @@ def load_and_preprocess_data(days_lookback: int = 30) -> pd.DataFrame:
         df = df.dropna(subset=["created_at"])
 
         # Strict future timestamp filter
-        now_utc = datetime.now(timezone.utc)
-        df = df[df["created_at"] < now_utc].copy()
+        df = df[df["created_at"] < effective_cutoff_utc].copy()
 
         # Timezone conversion
         df["created_at"] = df["created_at"].dt.tz_convert(BDT)
@@ -187,7 +194,10 @@ def load_and_preprocess_data(days_lookback: int = 30) -> pd.DataFrame:
         # Remove all leakage columns (exhaustive list)
         df = df.drop(columns=LEAKAGE_COLS, errors="ignore")
 
-        logging.info(f"[DATA LOADER] Loaded {len(df)} rows — leakage columns removed")
+        logging.info(
+            f"[DATA LOADER] Loaded {len(df)} rows — leakage columns removed "
+            f"(cutoff={effective_cutoff_utc.isoformat()})"
+        )
         return df
 
     except Exception as e:
