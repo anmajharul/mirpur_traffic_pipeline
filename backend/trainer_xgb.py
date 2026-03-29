@@ -393,6 +393,8 @@ def forecast_24h(model: xgb.XGBRegressor, df: pd.DataFrame) -> list:
     if model is None or df.empty:
         return []
 
+    # Ensure forecast inputs use the same engineered feature space as training.
+    df = engineer_features(df)
     available_features = [c for c in FEATURE_COLS if c in df.columns]
     _assert_no_leakage(available_features)
 
