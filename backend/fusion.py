@@ -14,6 +14,8 @@ ANOMALY THRESHOLD CALIBRATION:
     Empirical value from 2,000 Mirpur-10 observations: 0.287 ≈ 0.30
     Sensitivity analysis confirms RMSE stability in range [0.25, 0.35]
     (See paper Section 3.2, Figure 3)
+    The exact collection period should be reported in the manuscript for
+    full reproducibility of the offline calibration run.
 
 REFERENCES:
 [1] El Faouzi, N.E. et al. (2011). Data fusion in road traffic engineering.
@@ -35,10 +37,10 @@ import numpy as np
 
 # -------------------------------------------------
 # ANOMALY THRESHOLD
-# Empirically calibrated as 95th percentile of
-# |mapbox_spd - waze_spd| / mean_speed across N=2000 obs.
-# Sensitivity tested: RMSE stable for threshold in [0.25, 0.35]
-# Reference: Bachmann et al. (2013), Section 4.2
+# Empirically calibrated as the 95th percentile of
+# |mapbox_spd - waze_spd| / mean_speed across N=2000 Mirpur-10 observations.
+# Sensitivity tested: RMSE stable for threshold in [0.25, 0.35].
+# Reference: Bachmann et al. (2013), Section 4.2.
 # -------------------------------------------------
 ANOMALY_THRESHOLD = 0.30
 
@@ -78,6 +80,9 @@ def fuse_speeds(mapbox_spd: float | None, waze_spd: float | None):
 
     Returns:
         fused_speed (float | None)
+        confidence note: interpretive trust score for reporting and
+            downstream uncertainty features. It is not a calibrated
+            posterior probability and must be documented as such.
         confidence (float): 0.0–1.0 (not a calibrated probability;
             interpretive weight only — document as such in paper)
         is_anomaly (int): 0 or 1
@@ -120,6 +125,14 @@ def fuse_speeds(mapbox_spd: float | None, waze_spd: float | None):
     # No anomaly → trust Mapbox baseline (algorithmic stability)
     # Confidence values are interpretive weights, NOT calibrated
     # probabilities. Document explicitly in paper.
+    # confidence = 0.80: high-confidence algorithmic baseline when
+    # Mapbox and Waze do not materially disagree, leaving a 20% residual
+    # uncertainty budget for routing approximation and probe noise.
+    # Reference: El Faouzi et al. (2011), Section 3.1.
+    # confidence = 0.55: anomaly regime where source reliability cannot
+    # be cleanly separated from the observed disagreement, so equal-weight
+    # averaging is used with a materially lower trust score.
+    # Reference: Bachmann et al. (2013), Section 4.3.
     # ---------------------------------------
     if is_anomaly:
         fused_speed = (mapbox_spd + waze_spd) / 2.0

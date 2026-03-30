@@ -30,6 +30,21 @@ import pandas as pd
 import logging
 from typing import Dict, Tuple
 
+
+def _resolve_time_col(df: pd.DataFrame) -> str:
+    for col in ("created_at", "prediction_time", "timestamp"):
+        if col in df.columns:
+            return col
+    raise KeyError("[EVAL] No time column found. Expected one of: created_at, prediction_time, timestamp")
+
+
+def _resolve_corridor_col(df: pd.DataFrame) -> str:
+    for col in ("direction", "corridor_id", "corridor"):
+        if col in df.columns:
+            return col
+    raise KeyError("[EVAL] No corridor column found. Expected one of: direction, corridor_id, corridor")
+
+
 # =========================================
 # METRIC FUNCTIONS
 # Reference: Hyndman & Koehler (2006)
@@ -99,7 +114,7 @@ def bootstrap_ci(
 def historical_average_baseline(
     train_df: pd.DataFrame,
     test_df: pd.DataFrame,
-    target_col: str = "travel_time_min"
+    target_col: str = "actual_eta_min"
 ) -> pd.Series:
     """
     Baseline: per-corridor mean travel time computed from train set only.
@@ -109,9 +124,10 @@ def historical_average_baseline(
     FIX: Previous version computed mean from test_df — data leakage.
     Reference: Hyndman & Koehler (2006).
     """
-    corridor_means = train_df.groupby("corridor")[target_col].mean()
+    corridor_col = _resolve_corridor_col(train_df)
+    corridor_means = train_df.groupby(corridor_col)[target_col].mean()
     global_mean = train_df[target_col].mean()
-    return test_df["corridor"].map(corridor_means).fillna(global_mean)
+    return test_df[_resolve_corridor_col(test_df)].map(corridor_means).fillna(global_mean)
 
 
 # =========================================
@@ -127,7 +143,8 @@ def temporal_train_test_split(
     Timestamps must be sorted before calling.
     Reference: Bergmeir & Benítez (2012) — CV for time series.
     """
-    df = df.sort_values("timestamp").reset_index(drop=True)
+    time_col = _resolve_time_col(df)
+    df = df.sort_values(time_col).reset_index(drop=True)
     split_index = int(len(df) * split_ratio)
     train = df.iloc[:split_index].copy()
     test = df.iloc[split_index:].copy()
@@ -141,7 +158,7 @@ def evaluate_model(
     df: pd.DataFrame,
     model,
     feature_cols: list,
-    target_col: str = "travel_time_min"
+    target_col: str = "actual_eta_min"
 ) -> Dict:
     """
     Full evaluation with:
@@ -150,6 +167,11 @@ def evaluate_model(
     - Bootstrap 95% CI for MAE and RMSE
     - Corridor-wise MAE breakdown
     - Improvement delta vs baseline
+
+    Q1 paper note:
+    Report this against at least one naive baseline in the manuscript
+    (historical mean/median). If ARIMA or Random Forest are added later,
+    keep this evaluator as the metric registry shared across baselines.
     """
     report = {}
 
@@ -204,8 +226,9 @@ def evaluate_model(
     # 10. Corridor-wise MAE
     test_copy = test_df.copy()
     test_copy["_pred"] = y_pred
+    corridor_col = _resolve_corridor_col(test_copy)
     report["corridor_mae"] = (
-        test_copy.groupby("corridor")
+        test_copy.groupby(corridor_col)
         .apply(lambda g: mae(g[target_col].values, g["_pred"].values))
         .to_dict()
     )

@@ -2,15 +2,18 @@
 pipeline.py — Q1 DEFENSIBLE ORCHESTRATION MODULE
 ==================================================
 Purpose:
-- Central data collection + ML retraining orchestrator
-- 5-minute collection cycle, 6-hour retraining trigger
+- Data collection orchestrator only (Koyeb runtime)
+- 5-minute collection cycle for all Mirpur-10 corridors
 - Safe database insertion with response validation
 - Graceful error handling (pipeline never crashes)
 
-FIXES FROM REVIEW:
-- [MAJOR] safe_insert: validates response.data is non-empty (not just non-None)
-- [MAJOR] Graceful degradation on partial corridor failure
-- [MINOR] Explicit timezone handling (UTC throughout)
+ARCHITECTURE NOTE:
+  Model training has been removed from this module.
+  Training runs exclusively in GitHub Actions (weekly) and uploads
+  a portable JSON artifact to Supabase Storage. The Koyeb inference
+  service hot-loads the artifact at startup (see web_app.py).
+  This separation prevents RAM exhaustion on Koyeb free-tier instances
+  and ensures the collection pipeline never blocks on training.
 
 REFERENCES:
 [1] Sculley, D. et al. (2015). Hidden technical debt in machine learning systems.
@@ -19,13 +22,17 @@ REFERENCES:
 
 [2] Breck, E. et al. (2019). Data Validation for Machine Learning.
     SysML 2019. https://mlsys.org/Conferences/2019/doc/2019/167.pdf
+
+[3] Vlahogianni, E.I. et al. (2014). Short-term traffic forecasting:
+    Where we are and where we're going.
+    Transportation Research Part C, 43, 3-19.
+    https://doi.org/10.1016/j.trc.2014.01.005
 """
 
 import schedule  # type: ignore
 import time
 import logging
 from datetime import datetime, timezone, timedelta
-from typing import Optional
 
 from config import CORRIDORS, MAPBOX_TOKEN, SUPABASE_URL, SUPABASE_KEY  # type: ignore
 from supabase import create_client  # type: ignore
@@ -34,8 +41,6 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s: %(mes
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 BDT = timezone(timedelta(hours=6))
-TRAINING_WINDOW_DAYS = 30
-MODEL_FAMILY = "xgboost"
 
 
 # ======================================================
@@ -71,52 +76,11 @@ def safe_insert(table: str, record: dict) -> bool:
         return False
 
 
-def _parse_iso_timestamp(value: str) -> Optional[datetime]:
-    """
-    Parse ISO timestamps from Supabase into timezone-aware UTC datetimes.
-    """
-    try:
-        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except ValueError:
-        logging.warning(f"[PIPELINE] Could not parse timestamp: {value}")
-        return None
-
-    if parsed.tzinfo is None:
-        return parsed.replace(tzinfo=timezone.utc)
-
-    return parsed.astimezone(timezone.utc)
-
-
-def get_last_training_time() -> Optional[datetime]:
-    """
-    Read the latest forecast generation time from the database.
-    This keeps the retraining gate correct across process restarts.
-    """
-    try:
-        response = (
-            supabase.table("smart_eta_forecasts")
-            .select("forecast_generated_at")
-            .order("forecast_generated_at", desc=True)
-            .limit(1)
-            .execute()
-        )
-    except Exception as e:
-        logging.warning(f"[PIPELINE] Could not read last training time: {e}")
-        return None
-
-    rows = response.data or []
-    if not rows:
-        return None
-
-    raw_value = rows[0].get("forecast_generated_at")
-    if not raw_value:
-        return None
-
-    return _parse_iso_timestamp(str(raw_value))
-
-
 # ======================================================
 # COLLECTION CYCLE
+# Five-minute collection is a standard short-term forecasting cadence for
+# urban arterials and matches the horizon_min used downstream.
+# Reference: Vlahogianni et al. (2014), TR Part C, 43, 3-19.
 # ======================================================
 def run_collection_cycle():
     """
@@ -170,110 +134,27 @@ def run_collection_cycle():
 
 
 # ======================================================
-# TRAINING TRIGGER (6-hour interval)
-# ======================================================
-def maybe_retrain():
-    """
-    Retrain model if 6+ hours since last training.
-    Stores forecast to DB.
-    """
-    now = datetime.now(timezone.utc)
-    last_train_time = get_last_training_time()
-
-    if last_train_time is not None:
-        hours_since = (now - last_train_time).total_seconds() / 3600
-        if hours_since < 6:
-            return {
-                "trained": False,
-                "reason": "cooldown",
-                "last_training_time": last_train_time.isoformat(),
-                "hours_since_last_train": round(hours_since, 3),
-                "training_window_days": TRAINING_WINDOW_DAYS,
-                "model_family": MODEL_FAMILY,
-            }
-
-    logging.info("[PIPELINE] Triggering model retraining...")
-    from trainer_xgb import train_model, forecast_24h  # type: ignore
-    from data_loader import load_and_preprocess_data  # type: ignore
-
-    try:
-        model = train_model(
-            training_cutoff_utc=now,
-            days_lookback=TRAINING_WINDOW_DAYS,
-        )
-        if model is None:
-            logging.warning("[PIPELINE] Training returned None — insufficient data")
-            return {
-                "trained": False,
-                "reason": "insufficient_data",
-                "training_cutoff_utc": now.isoformat(),
-                "training_window_days": TRAINING_WINDOW_DAYS,
-                "model_family": MODEL_FAMILY,
-            }
-
-        # Generate 24h forecast
-        df = load_and_preprocess_data(
-            days_lookback=TRAINING_WINDOW_DAYS,
-            cutoff_time_utc=now,
-        )
-        if not df.empty:
-            forecasts = forecast_24h(model, df)
-            for fc in forecasts:
-                fc["forecast_generated_at"] = now.isoformat()
-                safe_insert("smart_eta_forecasts", fc)
-
-            logging.info(f"[PIPELINE] Stored {len(forecasts)} hourly forecasts")
-            return {
-                "trained": True,
-                "forecast_count": len(forecasts),
-                "trained_at": now.isoformat(),
-                "training_cutoff_utc": now.isoformat(),
-                "training_window_days": TRAINING_WINDOW_DAYS,
-                "model_family": MODEL_FAMILY,
-            }
-
-        return {
-            "trained": True,
-            "forecast_count": 0,
-            "trained_at": now.isoformat(),
-            "reason": "empty_dataframe",
-            "training_cutoff_utc": now.isoformat(),
-            "training_window_days": TRAINING_WINDOW_DAYS,
-            "model_family": MODEL_FAMILY,
-        }
-
-    except Exception as e:
-        logging.error(f"[PIPELINE] Training/forecast failed: {e}")
-        return {
-            "trained": False,
-            "reason": "error",
-            "error": str(e),
-            "training_cutoff_utc": now.isoformat(),
-            "training_window_days": TRAINING_WINDOW_DAYS,
-            "model_family": MODEL_FAMILY,
-        }
-
-
-# ======================================================
 # SCHEDULER
-# Reference: 5-min cycle standard for urban traffic monitoring
-# (Vlahogianni et al. 2014, Section 4)
+# Collection-only: model training is handled by GitHub Actions (weekly).
+# Reference: 5-minute cycle standard for urban traffic monitoring
+# and short-term arterial forecasting (Vlahogianni et al. 2014, Section 4).
 # ======================================================
 def start_pipeline():
     """
-    Start the pipeline scheduler:
-    - Every 5 minutes: collect data for all corridors
-    - Every 5 minutes: check if retraining is needed (6h interval)
+    Start the collection-only pipeline scheduler.
+    Runs every 5 minutes for all Mirpur-10 corridors.
+
+    Model training is NOT performed here. Training runs in GitHub Actions
+    (every Sunday 20:00 UTC) and uploads model_ml_weight.json to Supabase
+    Storage. The Koyeb service loads the artifact at startup via web_app.py.
     """
-    logging.info("[PIPELINE] Starting Mirpur-10 traffic data pipeline")
+    logging.info("[PIPELINE] Starting Mirpur-10 data collection pipeline")
 
     # Immediate first run
     run_collection_cycle()
-    maybe_retrain()
 
-    # Schedule subsequent runs
+    # Schedule subsequent collection runs every 5 minutes
     schedule.every(5).minutes.do(run_collection_cycle)
-    schedule.every(5).minutes.do(maybe_retrain)
 
     while True:
         try:

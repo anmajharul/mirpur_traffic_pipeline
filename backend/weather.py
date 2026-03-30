@@ -193,11 +193,14 @@ def fetch_weather(lat: float, lon: float, api_key: str) -> dict:
                 "aqi": compute_aqi(pm2_5, pm10),
 
                 "timestamp_utc": datetime.now(timezone.utc).isoformat(),
-                "api_latency_sec": latency
+                "api_latency_sec": latency,  # [STORE_ONLY] infra monitoring only
             }
 
             # --------------------------
             # PHYSICAL VALIDATION (Dhaka bounds)
+            # BMD climate normals for Dhaka justify allowing down to 8C:
+            # https://www.bmd.gov.bd/
+            # Enforced temperature bound in code below: 8 <= temp_c <= 45.
             # Temp: 10–45°C (Rahman et al. 2017)
             # Rain: 0–100 mm/hr (extreme Dhaka monsoon)
             # Wind: 0–120 kph
@@ -206,7 +209,7 @@ def fetch_weather(lat: float, lon: float, api_key: str) -> dict:
             t_raw = result["temperature"]
             if t_raw is not None:
                 t = float(t_raw)
-                if not (10 <= t <= 45):
+                if not (8 <= t <= 45):
                     logging.warning(f"[WEATHER] Temperature {t} out of range, nulled")
                     result["temperature"] = None
 

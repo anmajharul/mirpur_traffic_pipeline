@@ -36,10 +36,10 @@ from typing import Tuple
 # Source: JICA (2015) RSTP, HCM (2022)
 # ===============================
 REQUIRED_COLUMNS = [
-    "timestamp",
-    "corridor",
+    "created_at",
+    "direction",
     "distance_km",
-    "travel_time_min",
+    "actual_eta_min",
     "speed_kmh"
 ]
 
@@ -84,14 +84,14 @@ def _check_schema(df: pd.DataFrame, report: dict) -> pd.DataFrame:
 # ===============================
 def _validate_timestamp(df: pd.DataFrame, report: dict) -> pd.DataFrame:
     df = df.copy()
-    df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce", utc=True)
-    null_ts = df["timestamp"].isna().sum()
+    df["created_at"] = pd.to_datetime(df["created_at"], errors="coerce", utc=True)
+    null_ts = df["created_at"].isna().sum()
     if null_ts > 0:
         logging.warning(f"[VALIDATOR] {null_ts} invalid timestamps removed")
-    df = df.dropna(subset=["timestamp"])
+    df = df.dropna(subset=["created_at"])
 
     # Enforce temporal ordering (CRITICAL for lag feature correctness)
-    df = df.sort_values("timestamp").reset_index(drop=True)
+    df = df.sort_values("created_at").reset_index(drop=True)
     report["invalid_timestamps"] = int(null_ts)
     return df
 
@@ -109,7 +109,7 @@ def _validate_ranges(df: pd.DataFrame, report: dict) -> pd.DataFrame:
     df = df[~invalid_speed]
 
     # Travel time must be strictly positive
-    invalid_time = df["travel_time_min"] <= 0
+    invalid_time = df["actual_eta_min"] <= 0
     report["invalid_time_rows"] = int(invalid_time.sum())
     df = df[~invalid_time]
 
@@ -133,7 +133,7 @@ def _handle_missing(df: pd.DataFrame, report: dict) -> pd.DataFrame:
 # ===============================
 def _remove_duplicates(df: pd.DataFrame, report: dict) -> pd.DataFrame:
     before = len(df)
-    df = df.drop_duplicates(subset=["timestamp", "corridor"])
+    df = df.drop_duplicates(subset=["created_at", "direction"])
     report["duplicates_removed"] = before - len(df)
     return df
 
@@ -148,7 +148,7 @@ def _check_temporal_leakage(df: pd.DataFrame, report: dict) -> None:
     timestamps or data source merge issues.
     Reference: Kaufman et al. (2012), Section 3.
     """
-    if not df["timestamp"].is_monotonic_increasing:
+    if not df["created_at"].is_monotonic_increasing:
         report["temporal_leakage"] = True
         logging.error(
             "[VALIDATOR] Temporal ordering violation detected. "

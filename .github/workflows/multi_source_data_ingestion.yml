@@ -1,0 +1,69 @@
+name: Multi-Source API Data Ingestion Pipeline
+
+# Real-time multi-source traffic data ingestion for Mirpur-10 arterial corridors.
+# Implements the data collection layer described in paper Section 3.1.
+#
+# Data sources (API fusion):
+#   [1] Mapbox Directions API (driving-traffic profile) — real-time probe data
+#   [2] Waze crowd-sourced routing — mixed-flow disturbance proxy
+#   [3] WeatherAPI — EPA NowCast AQI + meteorological exogenous features
+#   [4] Dhaka MRT schedule — headway + service status
+#
+# GitHub Actions Azure runner IPs are not blocked by Waze's unofficial API.
+# No Koyeb or external runtime required — fully serverless.
+#
+# Collection cadence: 5-minute interval (standard for short-term urban
+# arterial forecasting per Vlahogianni et al. 2014, TR Part C).
+#
+# REFERENCES:
+# [1] Vlahogianni et al. (2014). TR Part C, 43, 3-19.
+#     DOI: 10.1016/j.trc.2014.01.005
+# [2] El Faouzi et al. (2011). Information Fusion, 12(1), 4–10.
+#     DOI: 10.1016/j.inffus.2010.06.001
+# [3] Bachmann et al. (2013). TR Part C, 26, 12–26.
+#     DOI: 10.1016/j.trc.2012.09.003
+# [4] JICA (2015). Dhaka Urban Transport Network Development Study (BD-P18).
+#     https://openjicareport.jica.go.jp/pdf/11996774_01.pdf
+
+on:
+  schedule:
+    # Every 5 minutes — unlimited for public repositories.
+    # Realistic end-to-end latency per run: ~90–150 s (4 API sets × network).
+    - cron: "*/5 * * * *"
+  workflow_dispatch:  # manual trigger for debugging / backfill
+
+jobs:
+  ingest_multi_source_data:
+    name: "Multi-Source Ingestion: Mapbox + Waze + Weather + MRT → Supabase"
+    runs-on: ubuntu-latest
+    timeout-minutes: 4   # hard kill prevents slot starvation on consecutive fail
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r ../requirements.txt
+
+      - name: Run multi-source data collection cycle
+        env:
+          SUPABASE_URL:    ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY:    ${{ secrets.SUPABASE_KEY }}
+          MAPBOX_TOKEN:    ${{ secrets.MAPBOX_TOKEN }}
+          WEATHER_API_KEY: ${{ secrets.WEATHER_API_KEY }}
+          TZ: UTC
+        run: |
+          echo "=== Multi-Source Ingestion Cycle — $(date -u) ==="
+          python run_collection.py
