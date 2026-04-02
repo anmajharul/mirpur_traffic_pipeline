@@ -1,0 +1,22 @@
+# ============================================================
+# requirements.trainer.txt
+# Mirpur-10 XGBoost Trainer — Cloud Run Job
+# Python 3.11 | pinned for reproducibility
+# ============================================================
+
+# Supabase client
+supabase==2.28.3
+
+# Environment variable loading
+python-dotenv==1.0.1
+
+# HTTP / REST calls (Supabase Storage upload)
+requests==2.31.0
+
+# Numerical / tabular processing
+numpy==1.26.4
+pandas==2.2.2
+
+# Machine Learning
+xgboost==2.0.3
+scikit-learn==1.4.2

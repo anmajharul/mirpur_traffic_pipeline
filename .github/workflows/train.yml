@@ -1,0 +1,71 @@
+name: Trigger Trainer Cloud Run Job
+
+# ============================================================
+# train.yml — Triggers the mirpur-trainer Cloud Run Job
+#             every 12 hours via gcloud CLI.
+#
+# Schedule: 00:00 and 12:00 UTC daily.
+#   - 00:00 UTC = 06:00 BDT (pre-peak update before morning rush)
+#   - 12:00 UTC = 18:00 BDT (post-peak update after evening rush)
+#
+# Free-tier math (trainer):
+#   2 vCPU × 1800s per run × 2 runs/day × 30 days
+#   = 216,000 vCPU-seconds/month
+#   Free tier: 180,000 vCPU-seconds
+#   ≈ 36,000 vCPU-seconds over free tier per month
+#   Equivalent cost: ~$0.04–0.06/month (negligible with billing enabled)
+#
+# NOTE: The --wait flag blocks until the job completes (or timeout).
+#       GitHub Actions workflow timeout is set to 35 minutes to
+#       accommodate the 1800s Cloud Run job timeout.
+#
+# REFERENCES:
+#   Hyndman & Athanasopoulos (2021) — retraining window strategy.
+#   Chen & Guestrin (2016) XGBoost — model artifact format.
+# ============================================================
+
+on:
+  schedule:
+    # 00:00 UTC = 06:00 BDT | 12:00 UTC = 18:00 BDT
+    - cron: "0 0,12 * * *"
+  workflow_dispatch:   # manual trigger for on-demand retraining
+
+env:
+  GCP_REGION: us-central1
+  TRAINER_JOB: mirpur-trainer
+
+jobs:
+  trigger-trainer:
+    name: "Trigger XGBoost Trainer Cloud Run Job"
+    runs-on: ubuntu-latest
+    timeout-minutes: 35   # Must exceed Cloud Run job timeout (1800s = 30min)
+
+    steps:
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Execute trainer Cloud Run Job
+        env:
+          PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+        run: |
+          echo "=== Triggering Trainer Job — $(date -u) ==="
+          echo "This will block until the Cloud Run job completes or times out (max 30 min)."
+
+          gcloud run jobs execute ${{ env.TRAINER_JOB }} \
+            --region=${{ env.GCP_REGION }} \
+            --project="${PROJECT_ID}" \
+            --wait
+
+          echo "=== Trainer job completed — $(date -u) ==="
+
+      - name: Report result
+        if: failure()
+        run: |
+          echo "::error::Trainer Cloud Run Job failed. Check GCP logs:"
+          echo "::error::https://console.cloud.google.com/run/jobs?project=${{ secrets.GCP_PROJECT_ID }}"
+          echo "::error::Common causes: insufficient data in smart_eta_logs, Supabase connection error, insufficient memory."

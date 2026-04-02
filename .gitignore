@@ -1,4 +1,4 @@
-﻿# Traffic data and backups
+# Traffic data and backups
 backend/traffic_pipeline.log
 
 # Python and virtual environments
@@ -10,10 +10,12 @@ __pycache__/
 *$py.class
 .ipynb_checkpoints/
 
-# Sensitive files
+# Sensitive files — NEVER commit these
 .env
 .env.local
 secrets.json
+gcp-sa-key.json
+*.json.key
 
 # Editor and system files
 .tmp/
@@ -25,6 +27,10 @@ dist/
 build/
 .eslintcache
 
-# Local notes
+# Tool-specific directories
+.qodo/
+.sixth/
+
+# Local notes (not for repo)
 frontend_q1_review.md
 implementation_plan.md

@@ -2,18 +2,30 @@
 pipeline.py — Q1 DEFENSIBLE ORCHESTRATION MODULE
 ==================================================
 Purpose:
-- Data collection orchestrator only (Koyeb runtime)
-- 5-minute collection cycle for all Mirpur-10 corridors
+- Data collection orchestrator for all Mirpur-10 corridors
+- 5-minute single-shot collection cycle (GitHub Actions) or continuous
+  scheduler (Cloud Run Jobs, start_pipeline())
 - Safe database insertion with response validation
-- Graceful error handling (pipeline never crashes)
+- Graceful error handling (pipeline never crashes on single corridor failure)
 
-ARCHITECTURE NOTE:
-  Model training has been removed from this module.
-  Training runs exclusively in GitHub Actions (weekly) and uploads
-  a portable JSON artifact to Supabase Storage. The Koyeb inference
-  service hot-loads the artifact at startup (see web_app.py).
-  This separation prevents RAM exhaustion on Koyeb free-tier instances
-  and ensures the collection pipeline never blocks on training.
+ARCHITECTURE NOTE (Cloud Run):
+  Data collection runs as Cloud Run Jobs (us-central1, free tier) triggered
+  by GitHub Actions (collect.yml, */5 min). Each job executes run_collection.py
+  which calls run_collection_cycle() once and exits (exit code 0/1).
+  The start_pipeline() scheduler below is provided for local development and
+  long-running compute environments; it is NOT used in the Cloud Run job.
+
+  Model training is a separate Cloud Run Job (mirpur-trainer, 1Gi RAM, 2 CPU,
+  1800s timeout) triggered by train.yml every 12 hours. Training never runs
+  inside the collector job — this prevents RAM exhaustion and collection
+  blocking.
+  Reference: Sculley et al. (2015) — separation of training and serving.
+
+  Waze data is NOT fetched directly in this module. Cloud Run IPs (GCP
+  us-central1) are blocked by Waze. A separate GitHub Actions workflow
+  (waze_cache.yml, Azure IP) fetches Waze data and writes to
+  Supabase waze_speed_cache. data_collector.py reads from this cache.
+  Reference: Bachmann et al. (2013) — heterogeneous multi-source fusion.
 
 REFERENCES:
 [1] Sculley, D. et al. (2015). Hidden technical debt in machine learning systems.
@@ -27,6 +39,9 @@ REFERENCES:
     Where we are and where we're going.
     Transportation Research Part C, 43, 3-19.
     https://doi.org/10.1016/j.trc.2014.01.005
+
+[4] Bachmann, C. et al. (2013). Transportation Research Part C, 26, 12–26.
+    https://doi.org/10.1016/j.trc.2012.09.003
 """
 
 import schedule  # type: ignore
@@ -144,9 +159,22 @@ def start_pipeline():
     Start the collection-only pipeline scheduler.
     Runs every 5 minutes for all Mirpur-10 corridors.
 
-    Model training is NOT performed here. Training runs in GitHub Actions
-    (every Sunday 20:00 UTC) and uploads model_ml_weight.json to Supabase
-    Storage. The Koyeb service loads the artifact at startup via web_app.py.
+    DEPLOYMENT CONTEXT:
+      In production (Cloud Run), this function is NOT called.
+      Cloud Run Jobs execute run_collection.py (which calls
+      run_collection_cycle() once and exits). GitHub Actions
+      (collect.yml) triggers the job every 5 minutes.
+
+      start_pipeline() is used for:
+        - Local development (python pipeline.py)
+        - Manual long-running compute sessions
+
+    Model training is NOT performed here. Training runs as a
+    separate Cloud Run Job (mirpur-trainer) triggered by train.yml
+    every 12 hours. The artifact (model_ml_weight.json) is written
+    to Supabase Storage and hot-loaded by web_app.py at startup.
+
+    Reference: Vlahogianni et al. (2014) — 5-min collection cadence.
     """
     logging.info("[PIPELINE] Starting Mirpur-10 data collection pipeline")
 

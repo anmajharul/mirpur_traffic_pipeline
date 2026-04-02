@@ -1,0 +1,76 @@
+name: Trigger Collector Cloud Run Job
+
+# ============================================================
+# collect.yml — Triggers the mirpur-collector Cloud Run Job
+#               every 5 minutes via gcloud CLI.
+#
+# WHY CLOUD RUN JOBS (not GitHub Actions direct):
+#   - GitHub Actions has a hard 6-hour workflow limit and
+#     scheduling jitter. Cloud Run Jobs are the authoritative
+#     compute unit for batch workloads.
+#   - This workflow acts only as a cron trigger / dispatcher.
+#     The actual Python logic runs inside the container on GCP.
+#
+# Free-tier math (collector):
+#   1 vCPU × 120s per run × 12 runs/hour × 24h × 30 days
+#   = 1,036,800 vCPU-seconds/month (collector uses ~60–90s avg)
+#   Actual: ~60s × 288 runs/day × 30 = 518,400 vCPU-seconds
+#   Free tier: 180,000 vCPU-seconds — collector alone exceeds this.
+#
+# ⚠️  FREE TIER WARNING:
+#   Running the collector on Cloud Run every 5 min (288×/day)
+#   will exceed the free tier. Two options:
+#     A) Keep collector on GitHub Actions (current approach in
+#        multi_source_data_ingestion.yml) which has no GCP cost.
+#     B) Use this workflow only if you have billing enabled and
+#        accept Cloud Run charges (~$1–3/month at these rates).
+#   This file is provided for completeness. Enable it only if
+#   you intentionally move the collector to Cloud Run.
+#
+# REFERENCES:
+#   Vlahogianni et al. (2014) TR Part C — 5-min cadence standard.
+# ============================================================
+
+on:
+  schedule:
+    # Every 5 minutes — GitHub Actions cron (UTC)
+    - cron: "*/5 * * * *"
+  workflow_dispatch:   # manual trigger for debugging
+
+env:
+  GCP_REGION: us-central1
+  COLLECTOR_JOB: mirpur-collector
+
+jobs:
+  trigger-collector:
+    name: "Trigger Collector Cloud Run Job"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Execute collector Cloud Run Job
+        env:
+          PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+        run: |
+          echo "=== Triggering Collector Job — $(date -u) ==="
+
+          gcloud run jobs execute ${{ env.COLLECTOR_JOB }} \
+            --region=${{ env.GCP_REGION }} \
+            --project="${PROJECT_ID}" \
+            --wait
+
+          echo "=== Collector job completed — $(date -u) ==="
+
+      - name: Report result
+        if: failure()
+        run: |
+          echo "::error::Collector Cloud Run Job failed. Check GCP logs:"
+          echo "::error::https://console.cloud.google.com/run/jobs?project=${{ secrets.GCP_PROJECT_ID }}"

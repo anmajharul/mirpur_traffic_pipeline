@@ -1,0 +1,38 @@
+# ============================================================
+# Dockerfile.trainer — Mirpur-10 XGBoost Model Trainer
+# Cloud Run Job: 1Gi RAM, 2 vCPU, timeout 1800s
+# Region: us-central1 (free tier)
+# ============================================================
+
+FROM python:3.11-slim
+
+# Metadata
+LABEL maintainer="mirpur-traffic-ai"
+LABEL job="trainer"
+
+# Prevents Python from buffering stdout/stderr (critical for Cloud Run logs)
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+
+WORKDIR /app
+
+# Build tools needed for scikit-learn / XGBoost C extensions
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy and install Python dependencies FIRST (layer caching)
+COPY requirements.trainer.txt .
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.trainer.txt
+
+# Copy only the backend source
+COPY backend/ ./backend/
+
+WORKDIR /app/backend
+
+# trainer_xgb.py:main() trains the model, saves the JSON artifact,
+# then upload_model.py pushes it to Supabase Storage.
+# Both steps are chained here so the job is atomic.
+ENTRYPOINT ["sh", "-c", "python trainer_xgb.py && python upload_model.py"]

@@ -1,0 +1,36 @@
+# ============================================================
+# Dockerfile.collector — Mirpur-10 Traffic Data Collector
+# Cloud Run Job: 512Mi RAM, 1 vCPU, timeout 240s
+# Region: us-central1 (free tier)
+# ============================================================
+
+FROM python:3.11-slim
+
+# Metadata
+LABEL maintainer="mirpur-traffic-ai"
+LABEL job="collector"
+
+# Prevents Python from buffering stdout/stderr (critical for Cloud Run logs)
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+
+WORKDIR /app
+
+# Install OS-level dependencies for WazeRouteCalculator (needs requests)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy and install Python dependencies FIRST (layer caching)
+COPY requirements.collector.txt .
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.collector.txt
+
+# Copy only the backend source (no trainer dependencies)
+COPY backend/ ./backend/
+
+WORKDIR /app/backend
+
+# Cloud Run Jobs execute the ENTRYPOINT and exit — no server needed.
+# run_collection.py runs ONE collection cycle then exits with code 0/1.
+ENTRYPOINT ["python", "run_collection.py"]

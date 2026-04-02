@@ -33,8 +33,9 @@ logging.basicConfig(level=logging.INFO, format="%(message)s")
 
 # ---------------------------------------------------------------------------
 # FASTAPI APP
-# Koyeb is no longer used for data collection (moved to GitHub Actions).
-# This app serves only as the Inference API for the Mirpur Traffic dashboard.
+# Data collection has been moved to Cloud Run Jobs (mirpur-collector) and
+# GitHub Actions (waze_cache.yml, multi_source_data_ingestion.yml).
+# This app serves as the Inference API for the Mirpur Traffic dashboard.
 # ---------------------------------------------------------------------------
 app = FastAPI(title="Mirpur Traffic AI Inference API")
 model_lock = Lock()
@@ -55,10 +56,18 @@ _active_model: Any = None  # Holds the xgb.Booster instance when loaded
 _model_source = "none"     # "supabase" | "bundled" | "none"
 _model_sha256  = ""        # hex digest of the last loaded artifact
 
+# ---------------------------------------------------------------------------
+# INSTANCE IDENTITY
+# Cloud Run automatically injects K_SERVICE (service/job name) and
+# K_REVISION (revision identifier) into the container environment.
+# These are used for structured log correlation.
+# Reference: Google Cloud Run docs — container runtime contract.
+#   https://cloud.google.com/run/docs/container-contract#env-vars
+# ---------------------------------------------------------------------------
 INSTANCE_ID = (
-    os.getenv("KOYEB_INSTANCE_ID")
-    or os.getenv("KOYEB_SERVICE_ID")
-    or os.getenv("HOSTNAME")
+    os.getenv("K_SERVICE")      # Cloud Run service or job name
+    or os.getenv("K_REVISION")  # Cloud Run revision identifier
+    or os.getenv("HOSTNAME")    # container hostname (fallback)
     or "local-instance"
 )
 
@@ -184,7 +193,7 @@ def startup_load_model() -> None:
 
 @app.get("/healthz")
 def healthcheck():
-    """Healthcheck endpoint for Koyeb/Vercel."""
+    """Healthcheck endpoint for Cloud Run / Vercel / monitoring services."""
     with model_lock:
         src    = _model_source
         digest = _model_sha256[:16] + "…" if _model_sha256 else ""
