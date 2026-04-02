@@ -38,6 +38,9 @@ jobs:
   trigger-trainer:
     name: "Trigger XGBoost Trainer Cloud Run Job"
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     timeout-minutes: 35   # Must exceed Cloud Run job timeout (1800s = 30min)
 
     steps:

@@ -21,6 +21,9 @@ jobs:
   run-collection:
     name: "Run Full Collection Pipeline"
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     timeout-minutes: 8
 
     env:
