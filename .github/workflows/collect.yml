@@ -6,14 +6,10 @@ name: Scheduled Data Collection (Waze + Mapbox Fusion)
 #
 # STEP 1: Waze Cache Collection (Azure IP)
 #   Runs natively on GitHub Actions to safely ping Waze servers
-#   without being blocked (since GCP us-central1 IPs are blocked).
-#   Writes freshly fetched speeds to Supabase 'waze_speed_cache'.
+#   without being blocked.
 #
 # STEP 2: Trigger Cloud Run Collector (GCP IP)
 #   Triggers the "mirpur-collector" Cloud Run job using WIF.
-#   The collector will fetch weather, Mapbox routing, and read
-#   the fresh waze speeds from Supabase, fusing them together 
-#   and saving to 'smart_eta_logs'.
 # ============================================================
 
 on:
@@ -22,23 +18,23 @@ on:
   workflow_dispatch:
 
 jobs:
-  # ──────────────────────────────────────────────────────────
-  # STEP 1: Collect Waze Cache (Azure IP)
-  # ──────────────────────────────────────────────────────────
-  collect-waze-cache:
-    name: "Step 1: Fetch Waze Dataset (Azure IP)"
+  run-collection:
+    name: "Run Full Collection Pipeline"
     runs-on: ubuntu-latest
-    timeout-minutes: 4
+    timeout-minutes: 8
 
-    defaults:
-      run:
-        working-directory: backend
+    env:
+      GCP_REGION: us-central1
+      COLLECTOR_JOB: mirpur-collector
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.11
+      # ────────────────────────────────────────────────────────
+      # PART 1: WAZE CACHE COLLECTION (Native run to avoid block)
+      # ────────────────────────────────────────────────────────
+      - name: Set up Python 3.11 for Waze
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -55,25 +51,15 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
           TZ: UTC
+        working-directory: backend
         run: |
           echo "=== Waze Cache Collection — $(date -u) ==="
           python waze_cache_collector.py
           echo "=== Waze cache collection complete ==="
 
-  # ──────────────────────────────────────────────────────────
-  # STEP 2: Trigger Cloud Run (GCP Datacenter IP)
-  # ──────────────────────────────────────────────────────────
-  trigger-collector:
-    name: "Step 2: Mapbox Fusion (Cloud Run)"
-    needs: collect-waze-cache # Wait for Waze to finish!
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-
-    env:
-      GCP_REGION: us-central1
-      COLLECTOR_JOB: mirpur-collector
-
-    steps:
+      # ────────────────────────────────────────────────────────
+      # PART 2: CLOUD RUN TRIGGER (Mapbox, Weather, MRT Fusion)
+      # ────────────────────────────────────────────────────────
       - name: Authenticate to Google Cloud via WIF
         uses: google-github-actions/auth@v2
         with:
@@ -99,4 +85,4 @@ jobs:
       - name: Report failing job
         if: failure()
         run: |
-          echo "::error::Collector Cloud Run Job failed. Check GCP logs."
+          echo "::error::Collector pipeline failed. Check GCP logs."
