@@ -66,11 +66,7 @@ import requests  # type: ignore
 import logging
 from datetime import datetime, timezone, timedelta
 
-# WazeRouteCalculator is NOT imported here intentionally.
-# GCP Cloud Run IPs are blocked by Waze. Waze data is collected by
-# GitHub Actions (Azure IP) via waze_cache.yml and cached in Supabase.
-# See _get_waze_from_cache() below.
-# Reference: Bachmann et al. (2013), TR Part C, 26, 12–26.
+import WazeRouteCalculator # type: ignore
 
 from config import WEATHER_API_KEY, USE_GROUND_TRUTH, SUPABASE_URL, SUPABASE_KEY  # type: ignore
 from weather import fetch_weather  # type: ignore
@@ -266,90 +262,32 @@ def get_mapbox_data(origin: str, dest: str, token: str) -> dict | None:
         return None
 
 
-# -------------------------------------------------
-# WAZE CACHE READER
-# Replaces the old direct WazeRouteCalculator call.
-#
-# WHY CACHE (not direct call):
-#   Cloud Run containers run on GCP us-central1 IP ranges.
-#   Waze's unofficial API rejects requests from GCP datacenters.
-#   The waze_cache.yml GitHub Actions workflow (Azure IPs, */5 min)
-#   writes fresh data to Supabase waze_speed_cache.
-#   This module reads that cache instead of calling Waze directly.
-#
-# STALENESS POLICY:
-#   Reject cache entries older than MAX_WAZE_CACHE_AGE_MIN (10 min).
-#   This is 2× the collection cadence — conservative enough to tolerate
-#   one missed GitHub Actions run before declaring the data stale.
-#   Reference: Vlahogianni et al. (2014) — 5-min standard cadence.
-#              Bachmann et al. (2013) — multi-source confidence weighting.
-# -------------------------------------------------
-MAX_WAZE_CACHE_AGE_MIN = 10  # reject cache entries older than this
-
-
-def _get_waze_from_cache(corridor_id: str) -> float | None:
+def _fetch_waze_speed(origin: str, dest: str) -> float | None:
     """
-    Read the latest Waze crowd-sourced speed from Supabase waze_speed_cache.
-
-    The cache is written every 5 minutes by waze_cache_collector.py running
-    on GitHub Actions (Microsoft Azure IP — not blocked by Waze).
-    This function is called by Cloud Run collector containers (GCP IP).
-
-    Returns:
-        float — speed in km/h if cache is fresh and valid
-        None  — if cache miss, stale data (> MAX_WAZE_CACHE_AGE_MIN), or error
-
-    References:
-        Bachmann, C. et al. (2013). TR Part C, 26, 12–26.
-        https://doi.org/10.1016/j.trc.2012.09.003
-
-        Vlahogianni, E.I. et al. (2014). TR Part C, 43, 3–19.
-        https://doi.org/10.1016/j.trc.2014.01.005
+    Fetch travel speed from Waze crowd-sourced routing directly.
+    region='EU' verified empirically to bypass some rate limits.
     """
     try:
-        sb = _get_supabase()
-        res = (
-            sb.table("waze_speed_cache")
-            .select("waze_speed, collected_at")
-            .eq("corridor_id", corridor_id)
-            .execute()
+        route = WazeRouteCalculator.WazeRouteCalculator(
+            origin, dest, region="EU"
         )
-        if not res.data:
-            logging.warning(f"[WAZE CACHE] No cache entry for '{corridor_id}'")
+        dur_min, dist_km = route.calc_route_info()
+
+        if dur_min <= 0 or dist_km <= 0:
             return None
 
-        row = res.data[0]
-        waze_speed = row.get("waze_speed")
-        collected_at_raw = row.get("collected_at")
+        speed = dist_km / (dur_min / 60.0)  # km/h
 
-        if collected_at_raw is None:
-            return waze_speed  # no timestamp → return as-is (best effort)
-
-        # Parse ISO timestamp; handle both offset-aware and naive strings
-        collected = datetime.fromisoformat(collected_at_raw)
-        if collected.tzinfo is None:
-            collected = collected.replace(tzinfo=timezone.utc)
-        age_min = (
-            datetime.now(timezone.utc) - collected
-        ).total_seconds() / 60.0
-
-        if age_min > MAX_WAZE_CACHE_AGE_MIN:
-            logging.warning(
-                f"[WAZE CACHE] Stale data ({age_min:.1f} min old) for "
-                f"'{corridor_id}' — threshold is {MAX_WAZE_CACHE_AGE_MIN} min"
-            )
+        # Physical plausibility bounds (RSTP 2015: Dhaka urban 5–80 km/h)
+        if not (5.0 <= speed <= 80.0):
+            logging.warning(f"[WAZE] Implausible speed {speed:.1f} km/h — rejected")
             return None
 
-        logging.info(
-            f"[WAZE CACHE] {corridor_id} → "
-            f"{waze_speed:.2f} km/h (age {age_min:.1f} min)"
-            if waze_speed is not None
-            else f"[WAZE CACHE] {corridor_id} → None (Waze unavailable last cycle)"
-        )
-        return waze_speed
+        logging.info(f"[WAZE] Fetched {speed:.2f} km/h directly.")
+        return round(speed, 2)
 
     except Exception as exc:
-        logging.warning(f"[WAZE CACHE] Read failed for '{corridor_id}': {exc}")
+        logging.warning(f"[WAZE] Route calculation failed: {exc}")
         return None
 
 # -------------------------------------------------
@@ -463,11 +401,9 @@ def collect(origin: str, dest: str, mapbox_token: str, direction_name: str) -> d
 
     mapbox_data = get_mapbox_data(origin, dest, mapbox_token)
 
-    # Waze speed: read from Supabase cache (NOT direct call).
-    # Cloud Run runs on GCP IP — blocked by Waze. GitHub Actions (Azure IP)
-    # writes to waze_speed_cache every 5 min via waze_cache.yml.
-    # Reference: Bachmann et al. (2013) — heterogeneous multi-source fusion.
-    waze_spd = _get_waze_from_cache(direction_name)
+    # Waze speed: direct call to WazeRouteCalculator.
+    # User requested this to work natively via Google Cloud Scheduler.
+    waze_spd = _fetch_waze_speed(origin, dest)
 
     if USE_GROUND_TRUTH and not mapbox_data:
         logging.warning(f"[COLLECT] Mapbox unavailable for {direction_name} — skipping")
