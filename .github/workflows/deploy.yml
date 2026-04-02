@@ -4,14 +4,16 @@ name: Build & Deploy to Cloud Run
 # deploy.yml — Build + push Docker images to Artifact Registry,
 #              then create/update Cloud Run Jobs.
 #
-# Trigger: push to main (for deployment), or workflow_dispatch.
-# Architecture:
-#   collector-job → runs run_collection.py (single shot, exit)
-#   trainer-job   → runs trainer_xgb.py + upload_model.py (single shot, exit)
+# AUTH: Workload Identity Federation (WIF) — zero JSON keys.
+# Organization policy iam.disableServiceAccountKeyCreation blocks
+# service account JSON keys. WIF is the mandatory, secure alternative.
+# Reference: Google Cloud WIF docs:
+#   https://cloud.google.com/iam/docs/workload-identity-federation
 #
-# Cost: Building images does NOT incur Cloud Run charges.
-#       The jobs only bill when actually executed.
-# Free tier: 180,000 vCPU-seconds/month, us-central1 only.
+# IAM roles follow Principle of Least Privilege:
+#   roles/artifactregistry.writer  — push Docker images
+#   roles/run.developer            — create/update/execute Cloud Run Jobs
+#   roles/iam.serviceAccountUser  — impersonate SA on Cloud Run jobs
 # ============================================================
 
 on:
@@ -27,7 +29,7 @@ on:
 
 env:
   GCP_REGION: us-central1
-  AR_REPO: mirpur-traffic         # Artifact Registry repository name
+  AR_REPO: mirpur-traffic
   COLLECTOR_IMAGE: collector
   TRAINER_IMAGE: trainer
   COLLECTOR_JOB: mirpur-collector
@@ -42,7 +44,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write   # Required for Workload Identity Federation (future)
+      id-token: write   # REQUIRED for Workload Identity Federation
 
     outputs:
       image: ${{ steps.meta.outputs.image }}
@@ -51,10 +53,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Authenticate to Google Cloud
+      - name: Authenticate to Google Cloud via WIF
         uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
 
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
@@ -94,10 +97,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Authenticate to Google Cloud
+      - name: Authenticate to Google Cloud via WIF
         uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
 
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
@@ -122,7 +126,6 @@ jobs:
 
   # ──────────────────────────────────────────────────────────
   # JOB 3: Deploy/update Cloud Run Jobs
-  # Runs after BOTH images are built successfully.
   # ──────────────────────────────────────────────────────────
   deploy-jobs:
     name: "Deploy Cloud Run Jobs"
@@ -133,17 +136,16 @@ jobs:
       id-token: write
 
     steps:
-      - name: Authenticate to Google Cloud
+      - name: Authenticate to Google Cloud via WIF
         uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
 
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
-      # ── Collector Job ──────────────────────────────────────
-      # 512Mi RAM, 1 vCPU, timeout 240s
-      # One task, one container, exits after one collection cycle.
+      # ── Collector Job (512Mi, 1 vCPU, 240s) ───────────────
       - name: Deploy collector Cloud Run Job
         env:
           PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
@@ -178,8 +180,7 @@ jobs:
 
           echo "Collector job deployed/updated ✓"
 
-      # ── Trainer Job ────────────────────────────────────────
-      # 1Gi RAM, 2 vCPU, timeout 1800s
+      # ── Trainer Job (1Gi, 2 vCPU, 1800s) ─────────────────
       - name: Deploy trainer Cloud Run Job
         env:
           PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
@@ -219,3 +220,4 @@ jobs:
           echo "Trainer:   ${{ env.TRAINER_JOB }} (1Gi, 2 CPU, 1800s)"
           echo "Region:    ${{ env.GCP_REGION }}"
           echo "SHA:       ${{ github.sha }}"
+          echo "Auth:      Workload Identity Federation (no JSON keys)"
