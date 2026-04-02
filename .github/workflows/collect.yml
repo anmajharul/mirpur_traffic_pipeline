@@ -13,8 +13,6 @@ name: Scheduled Data Collection (Waze + Mapbox Fusion)
 # ============================================================
 
 on:
-  schedule:
-    - cron: "*/5 * * * *"
   workflow_dispatch:
 
 jobs:

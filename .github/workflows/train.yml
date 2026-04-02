@@ -25,9 +25,6 @@ name: Trigger Trainer Cloud Run Job
 # ============================================================
 
 on:
-  schedule:
-    # 00:00 UTC = 06:00 BDT | 12:00 UTC = 18:00 BDT
-    - cron: "0 0,12 * * *"
   workflow_dispatch:   # manual trigger for on-demand retraining
 
 env:
