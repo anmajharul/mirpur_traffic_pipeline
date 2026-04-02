@@ -29,7 +29,7 @@ on:
 
 env:
   GCP_REGION: us-central1
-  AR_REPO: mirpur-traffic
+  AR_REPO: mirpur-repo
   COLLECTOR_IMAGE: collector
   TRAINER_IMAGE: trainer
   COLLECTOR_JOB: mirpur-collector
