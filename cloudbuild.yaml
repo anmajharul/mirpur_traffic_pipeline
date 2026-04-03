@@ -75,4 +75,5 @@ images:
   - 'gcr.io/$PROJECT_ID/mirpur-collector'
   - 'gcr.io/$PROJECT_ID/mirpur-api'
 
-
+options:
+  logging: CLOUD_LOGGING_ONLY
