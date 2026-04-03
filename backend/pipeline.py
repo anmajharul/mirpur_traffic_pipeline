@@ -38,8 +38,6 @@ REFERENCES:
     https://doi.org/10.1016/j.trc.2012.09.003
 """
 
-import schedule  # type: ignore
-import time
 import logging
 from datetime import datetime, timezone, timedelta
 
@@ -143,52 +141,10 @@ def run_collection_cycle():
 
 
 # ======================================================
-# SCHEDULER
-# Collection-only: model training is handled by GitHub Actions (weekly).
+# COLLECTION EXECUTION
+# Executes data collection once and cleanly exits for Cloud Run Jobs.
 # Reference: 5-minute cycle standard for urban traffic monitoring
 # and short-term arterial forecasting (Vlahogianni et al. 2014, Section 4).
 # ======================================================
-def start_pipeline():
-    """
-    Start the collection-only pipeline scheduler.
-    Runs every 5 minutes for all Mirpur-10 corridors.
-
-    DEPLOYMENT CONTEXT:
-      In production (Cloud Run), this function is NOT called.
-      Cloud Run Jobs execute run_collection.py (which calls
-      run_collection_cycle() once and exits). GitHub Actions
-      (collect.yml) triggers the job every 5 minutes.
-
-      start_pipeline() is used for:
-        - Local development (python pipeline.py)
-        - Manual long-running compute sessions
-
-    Model training is NOT performed here. Training runs as a
-    separate Cloud Run Job (mirpur-trainer) triggered by train.yml
-    every 12 hours. The artifact (model_ml_weight.json) is written
-    to Supabase Storage and hot-loaded by web_app.py at startup.
-
-    Reference: Vlahogianni et al. (2014) — 5-min collection cadence.
-    """
-    logging.info("[PIPELINE] Starting Mirpur-10 data collection pipeline")
-
-    # Immediate first run
-    run_collection_cycle()
-
-    # Schedule subsequent collection runs every 5 minutes
-    schedule.every(5).minutes.do(run_collection_cycle)
-
-    while True:
-        try:
-            schedule.run_pending()
-            time.sleep(30)
-        except KeyboardInterrupt:
-            logging.info("[PIPELINE] Stopped by user")
-            break
-        except Exception as e:
-            logging.error(f"[PIPELINE] Scheduler error: {e}")
-            time.sleep(60)
-
-
 if __name__ == "__main__":
-    start_pipeline()
+    run_collection_cycle()

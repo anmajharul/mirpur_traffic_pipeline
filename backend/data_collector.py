@@ -489,13 +489,6 @@ def collect(origin: str, dest: str, mapbox_token: str, direction_name: str) -> d
 
     severity, severity_idx = classify_severity(congestion)
 
-    # Anomaly ratio [logging only]
-    anomaly_ratio = None
-    if mapbox_spd is not None and waze_spd is not None:
-        anomaly_ratio = round(
-            abs(mapbox_spd - waze_spd) / max((mapbox_spd + waze_spd) / 2.0, 1e-6),
-            4
-        )
 
     # Weather (with EPA NowCast AQI — see weather.py)
     weather = fetch_weather(23.8067, 90.3687, WEATHER_API_KEY) or {}
@@ -584,7 +577,6 @@ def collect(origin: str, dest: str, mapbox_token: str, direction_name: str) -> d
         "severity_index": severity_idx,
 
         "mapbox_speed": mapbox_spd,
-        "waze_speed": None,         # Waze removed — violates independence (El Faouzi 2011)
         "data_confidence": conf,
         "source_count": 1,          # Mapbox only (1 real-time source)
         "osrm_eta_min": osrm_eta,   # [PAPER TABLE 3] OSRM static baseline ETA

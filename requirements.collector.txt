@@ -19,3 +19,8 @@ pandas==2.2.2
 
 # Scheduler (not used in Cloud Run one-shot mode, but imported by pipeline.py)
 schedule==1.2.1
+
+# --------------------------------------------------
+# GOOGLE CLOUD
+# --------------------------------------------------
+google-cloud-storage==2.16.0
