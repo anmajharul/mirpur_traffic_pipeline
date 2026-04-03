@@ -21,12 +21,6 @@ ARCHITECTURE NOTE (Cloud Run):
   blocking.
   Reference: Sculley et al. (2015) — separation of training and serving.
 
-  Waze data is NOT fetched directly in this module. Cloud Run IPs (GCP
-  us-central1) are blocked by Waze. A separate GitHub Actions workflow
-  (waze_cache.yml, Azure IP) fetches Waze data and writes to
-  Supabase waze_speed_cache. data_collector.py reads from this cache.
-  Reference: Bachmann et al. (2013) — heterogeneous multi-source fusion.
-
 REFERENCES:
 [1] Sculley, D. et al. (2015). Hidden technical debt in machine learning systems.
     NeurIPS 2015.

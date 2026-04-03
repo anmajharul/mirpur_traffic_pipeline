@@ -2,64 +2,81 @@
 data_collector.py — Q1 DEFENSIBLE DATA COLLECTION MODULE
 ==========================================================
 Purpose:
-- Multi-source probe data ingestion (Mapbox + Waze cache)
+- Multi-source probe data ingestion (Mapbox real-time + OSRM static baseline)
 - FHWA congestion index and severity classification
 - TTI computation (Travel Time Index)
 - OGC LineString geometry encoding
-- Anomaly-aware fusion
+- Temporal z-score anomaly detection
+- Dynamic PCU scaling (non-lane-based heterogeneous traffic)
 - EPA NowCast AQI (NOT max(PM2.5, PM10))
-- Temporal feature encoding (hour_of_day, is_peak_hour, is_weekend,
-  is_monsoon, month) for ML feature engineering downstream
+- Temporal feature encoding for ML feature engineering
 - Weather condition ordinal encoding for XGBoost compatibility
 
-ARCHITECTURE NOTE (Waze):
-  WazeRouteCalculator is NOT called directly from this module.
-  GCP Cloud Run datacenter IPs (us-central1) are blocked by the
-  Waze unofficial routing API. GitHub Actions runs on Microsoft Azure
-  IP ranges, which Waze does not currently block.
-  Architecture:
-    GitHub Actions (Azure IP, */5 min) → WazeRouteCalculator
-       → Supabase waze_speed_cache (upsert)
-    Cloud Run collector job (GCP IP, */5 min)
-       → _get_waze_from_cache() reads waze_speed_cache
-       → fuse_speeds(mapbox_spd, waze_spd)
-  This separation is disclosed in paper §3.2 (Data Acquisition).
-  Reference: Bachmann et al. (2013) — multi-source heterogeneous
-  data fusion with source-specific confidence weights.
+ARCHITECTURE NOTE (Waze REMOVED):
+  Waze has been fully removed from the data pipeline.
+  Reason: Waze and Mapbox are correlated routing engines sharing
+  overlapping GPS probe data. Their fusion violates sensor independence
+  assumptions (El Faouzi et al. 2011, \u00a74). The independence assumption
+  required for Kalman or inverse-variance fusion cannot be satisfied.
+  Replacement: OSRM (Open Source Routing Machine) provides a genuinely
+  different signal — static OSM-based routing with NO real-time traffic.
+  The divergence between Mapbox (real-time) and OSRM (historical baseline)
+  is a principled anomaly indicator: high divergence = unusual conditions.
+  Reference: Luxen & Vetter (2011). ACM SIGSPATIAL 2011.
+
+OSRM DUAL USE:
+  1. Anomaly indicator: osrm_divergence = (osrm_spd - mapbox_spd) / osrm_spd
+     Positive → current travel slower than historical (congestion)
+     Negative → current travel faster than historical (unusual)
+  2. Paper baseline: OSRM ETA stored as osrm_eta_min for Table 3 comparison.
 
 REFERENCES:
-[1] Bachmann, C. et al. (2013). Transportation Research Part C, 26, 12–26.
-    https://doi.org/10.1016/j.trc.2012.09.003
+[1] Luxen, D. & Vetter, C. (2011). Real-time routing with OpenStreetMap data.
+    Proceedings of the 19th ACM SIGSPATIAL, pp. 513-516.
+    https://doi.org/10.1145/2093973.2094062
+    [Basis: OSRM static routing; osrm_divergence feature and paper baseline]
 
-[2] El Faouzi, N.E. et al. (2011). Information Fusion, 12(1), 4–10.
+[2] El Faouzi, N.E. et al. (2011). Data fusion in road traffic engineering.
+    Information Fusion, 12(1), 4-10.
     https://doi.org/10.1016/j.inffus.2010.06.001
+    [Basis: Waze removed — independence assumption violated for routing engines]
 
 [3] TRB (2022). Highway Capacity Manual, 7th Edition.
     Transportation Research Board. ISBN 978-0-309-08766-8.
 
-[4] FHWA (2006). Travel Time Reliability: Making It There On Time, All The Time.
+[4] FHWA (2012). Travel Time Reliability: Making It There On Time, All The Time.
     Federal Highway Administration Report FHWA-HOP-06-070.
     https://ops.fhwa.dot.gov/publications/tt_reliability/
+    [Basis: TTI = current_time / free_flow_time; CI = TTI - 1]
 
 [5] OGC (2011). OpenGIS Simple Features Specification for SQL, Rev 1.2.1.
     https://www.ogc.org/standards/sfs
+    [Basis: WKT LINESTRING geometry encoding for spatial storage]
 
 [6] Vlahogianni, E.I. et al. (2014). Short-term traffic forecasting:
     Where we are and where we're going.
     Transportation Research Part C, 43, 3-19.
     https://doi.org/10.1016/j.trc.2014.01.005
+    [Basis: 5-min collection cadence; 30-min (N=6) anomaly window]
 
 [7] JICA (2015). Preparatory Survey on Dhaka Urban Transport Network
     Development Study (BD-P18).
     https://openjicareport.jica.go.jp/pdf/11996774_01.pdf
+    [Basis: Dhaka peak hour definition; fleet PCU composition Table 4.3]
 
 [8] Mapbox Directions API / Traffic Data Docs (2024).
     https://docs.mapbox.com/help/dive-deeper/directions/
-    https://docs.mapbox.com/data/traffic/guides/
+    [Basis: driving-traffic profile for real-time ETA retrieval]
 
 [9] Kaufman, S. et al. (2012). Leakage in Data Mining: Formulation, Detection,
     and Avoidance. ACM TKDD 6(4), Article 15.
     https://doi.org/10.1145/2382577.2382579
+    [Basis: speed_kmh and tti marked STORE_ONLY; not used as ML features]
+
+[10] Ahmed, M.S. & Cook, A.R. (1979). Analysis of freeway traffic time-series
+     data by using Box-Jenkins techniques. Transportation Research Record,
+     722, 1-9.
+     [Basis: 2-sigma z-score criterion for temporal anomaly detection]
 """
 
 import requests  # type: ignore
@@ -74,10 +91,11 @@ from datetime import datetime, timezone, timedelta
 
 from config import WEATHER_API_KEY, USE_GROUND_TRUTH, SUPABASE_URL, SUPABASE_KEY  # type: ignore
 from weather import fetch_weather  # type: ignore
-from fusion import fuse_speeds  # type: ignore
 from mrt import get_mrt_status  # type: ignore
 from freeflow import get_free_flow  # type: ignore
 from data_loader import fetch_direction_data  # type: ignore
+from evaluation import get_osrm_speed, get_osrm_eta  # type: ignore
+from fusion import detect_temporal_anomaly  # type: ignore
 from supabase import create_client  # type: ignore
 
 BDT = timezone(timedelta(hours=6))  # Bangladesh Standard Time (UTC+6)
@@ -267,90 +285,31 @@ def get_mapbox_data(origin: str, dest: str, token: str) -> dict | None:
 
 
 # -------------------------------------------------
-# WAZE CACHE READER
-# Replaces the old direct WazeRouteCalculator call.
+# OSRM STATIC SPEED FETCHER
+# Replaces Waze cache reader.
 #
-# WHY CACHE (not direct call):
-#   Cloud Run containers run on GCP us-central1 IP ranges.
-#   Waze's unofficial API rejects requests from GCP datacenters.
-#   The waze_cache.yml GitHub Actions workflow (Azure IPs, */5 min)
-#   writes fresh data to Supabase waze_speed_cache.
-#   This module reads that cache instead of calling Waze directly.
+# WHY OSRM (not Waze):
+#   Waze is a routing engine sharing GPS probe data with Mapbox.
+#   Their fusion violates sensor independence (El Faouzi et al. 2011, \u00a74).
+#   OSRM is a Static routing engine using OSM road network data with
+#   NO real-time traffic. The divergence between Mapbox (real-time) and
+#   OSRM (historical) is a principled anomaly feature.
 #
-# STALENESS POLICY:
-#   Reject cache entries older than MAX_WAZE_CACHE_AGE_MIN (10 min).
-#   This is 2× the collection cadence — conservative enough to tolerate
-#   one missed GitHub Actions run before declaring the data stale.
-#   Reference: Vlahogianni et al. (2014) — 5-min standard cadence.
-#              Bachmann et al. (2013) — multi-source confidence weighting.
+# OSRM_DIVERGENCE FORMULA:
+#   osrm_divergence = (osrm_speed - mapbox_speed) / osrm_speed
+#   Positive → current travel slower than historical (congestion event)
+#   Negative → current travel faster than historical (unusual event)
+#
+# STALENESS NOTE:
+#   OSRM gives consistent static speeds — no staleness concern.
+#   osrm_eta_min is stored per-cycle for paper Table 3 baseline comparison.
+#
+# References:
+#   Luxen & Vetter (2011). ACM SIGSPATIAL 2011, pp. 513-516.
+#   https://doi.org/10.1145/2093973.2094062
+#   El Faouzi et al. (2011). Information Fusion, 12(1), 4-10.
+#   https://doi.org/10.1016/j.inffus.2010.06.001
 # -------------------------------------------------
-MAX_WAZE_CACHE_AGE_MIN = 10  # reject cache entries older than this
-
-
-def _get_waze_from_cache(corridor_id: str) -> float | None:
-    """
-    Read the latest Waze crowd-sourced speed from Supabase waze_speed_cache.
-
-    The cache is written every 5 minutes by waze_cache_collector.py running
-    on GitHub Actions (Microsoft Azure IP — not blocked by Waze).
-    This function is called by Cloud Run collector containers (GCP IP).
-
-    Returns:
-        float — speed in km/h if cache is fresh and valid
-        None  — if cache miss, stale data (> MAX_WAZE_CACHE_AGE_MIN), or error
-
-    References:
-        Bachmann, C. et al. (2013). TR Part C, 26, 12–26.
-        https://doi.org/10.1016/j.trc.2012.09.003
-
-        Vlahogianni, E.I. et al. (2014). TR Part C, 43, 3–19.
-        https://doi.org/10.1016/j.trc.2014.01.005
-    """
-    try:
-        sb = _get_supabase()
-        res = (
-            sb.table("waze_speed_cache")
-            .select("waze_speed, collected_at")
-            .eq("corridor_id", corridor_id)
-            .execute()
-        )
-        if not res.data:
-            logging.warning(f"[WAZE CACHE] No cache entry for '{corridor_id}'")
-            return None
-
-        row = res.data[0]
-        waze_speed = row.get("waze_speed")
-        collected_at_raw = row.get("collected_at")
-
-        if collected_at_raw is None:
-            return waze_speed  # no timestamp → return as-is (best effort)
-
-        # Parse ISO timestamp; handle both offset-aware and naive strings
-        collected = datetime.fromisoformat(collected_at_raw)
-        if collected.tzinfo is None:
-            collected = collected.replace(tzinfo=timezone.utc)
-        age_min = (
-            datetime.now(timezone.utc) - collected
-        ).total_seconds() / 60.0
-
-        if age_min > MAX_WAZE_CACHE_AGE_MIN:
-            logging.warning(
-                f"[WAZE CACHE] Stale data ({age_min:.1f} min old) for "
-                f"'{corridor_id}' — threshold is {MAX_WAZE_CACHE_AGE_MIN} min"
-            )
-            return None
-
-        logging.info(
-            f"[WAZE CACHE] {corridor_id} → "
-            f"{waze_speed:.2f} km/h (age {age_min:.1f} min)"
-            if waze_speed is not None
-            else f"[WAZE CACHE] {corridor_id} → None (Waze unavailable last cycle)"
-        )
-        return waze_speed
-
-    except Exception as exc:
-        logging.warning(f"[WAZE CACHE] Read failed for '{corridor_id}': {exc}")
-        return None
 
 # -------------------------------------------------
 # PCU-WEIGHTED MIXED-TRAFFIC INDEX
@@ -481,25 +440,40 @@ def collect(origin: str, dest: str, mapbox_token: str, direction_name: str) -> d
 
     mapbox_data = get_mapbox_data(origin, dest, mapbox_token)
 
-    # Waze speed: read from Supabase cache (NOT direct call).
-    # Cloud Run runs on GCP IP — blocked by Waze. GitHub Actions (Azure IP)
-    # writes to waze_speed_cache every 5 min via waze_cache.yml.
-    # Reference: Bachmann et al. (2013) — heterogeneous multi-source fusion.
-    waze_spd = _get_waze_from_cache(direction_name)
-
     if USE_GROUND_TRUTH and not mapbox_data:
         logging.warning(f"[COLLECT] Mapbox unavailable for {direction_name} — skipping")
         return {"status": "Data unavailable"}
 
     mapbox_spd = mapbox_data["speed_kmh"] if mapbox_data else None
-    eta = mapbox_data["actual_eta_min"] if mapbox_data else None
-    dist = mapbox_data["distance_km"] if mapbox_data else None
+    eta        = mapbox_data["actual_eta_min"] if mapbox_data else None
+    dist       = mapbox_data["distance_km"] if mapbox_data else None
 
-    fused_spd, conf, is_anomaly = fuse_speeds(mapbox_spd, waze_spd)
-    if fused_spd is None:
+    if mapbox_spd is None:
         return {"status": "Data unavailable"}
 
+    # Fused speed = Mapbox only (single source, no spatial fusion)
+    # Waze removed: violates sensor independence (El Faouzi et al. 2011, §4)
+    fused_spd = float(mapbox_spd)
+    conf      = 0.80   # algorithmic routing baseline confidence
+
     ff = get_cached_free_flow(direction_name)
+
+    # ── OSRM static speed + ETA (replaces Waze) ────────────────────────────
+    # OSRM provides static OSM-based routing (no real-time traffic).
+    # Stored for two purposes:
+    #   1. osrm_divergence: anomaly feature (Mapbox vs historical baseline)
+    #   2. osrm_eta_min: paper Table 3 baseline comparison column
+    # Reference: Luxen & Vetter (2011). https://doi.org/10.1145/2093973.2094062
+    osrm_spd = get_osrm_speed(origin, dest)
+    osrm_eta = get_osrm_eta(origin, dest)
+
+    # osrm_divergence = (osrm — mapbox) / osrm
+    # Positive → current slower than historical (congestion)
+    # Negative → current faster (unusual free-flow)
+    # Undefined if OSRM unavailable (stored as None, imputed during training)
+    osrm_divergence = None
+    if osrm_spd is not None and osrm_spd > 0:
+        osrm_divergence = round((osrm_spd - mapbox_spd) / osrm_spd, 4)
 
     # [STORE_ONLY] — do NOT use these as model features (target-derived)
     # Reference: Kaufman et al. (2012) — leakage formulation §3.
@@ -569,12 +543,10 @@ def collect(origin: str, dest: str, mapbox_token: str, direction_name: str) -> d
     except Exception:
         history_speeds = []
 
-    z_anomaly, z_score = detect_temporal_anomaly(
+    is_anomaly, z_score = detect_temporal_anomaly(
         current_speed=float(fused_spd),
         history=history_speeds,
     )
-    is_spatial_disagree = int(is_anomaly)  # spatial flag from fuse_speeds()
-    is_anomaly = z_anomaly                 # final anomaly = temporal z-score
 
     # PCU-weighted mixed-traffic index (dynamic CI-based formula)
     pcu_index, pcu_source = compute_pcu_index(fused_spd, ff, tti)
@@ -612,12 +584,14 @@ def collect(origin: str, dest: str, mapbox_token: str, direction_name: str) -> d
         "severity_index": severity_idx,
 
         "mapbox_speed": mapbox_spd,
-        "waze_speed": waze_spd,
+        "waze_speed": None,         # Waze removed — violates independence (El Faouzi 2011)
         "data_confidence": conf,
+        "source_count": 1,          # Mapbox only (1 real-time source)
+        "osrm_eta_min": osrm_eta,   # [PAPER TABLE 3] OSRM static baseline ETA
+        "osrm_divergence": osrm_divergence,  # [ML FEATURE] Mapbox vs OSRM divergence
 
         "is_anomaly": is_anomaly,
         "anomaly_score": z_score,           # temporal z-score (Ahmed & Cook 1979)
-        "spatial_disagree": is_spatial_disagree,  # Mapbox-Waze ratio flag (stored only)
         "reason": "Temporal z-score (2σ)" if is_anomaly else None,
 
         "actual_eta_min": eta,
@@ -687,10 +661,9 @@ def collect(origin: str, dest: str, mapbox_token: str, direction_name: str) -> d
         # forecasting practice in the ITS literature.
         "horizon_min": 5,  # Reference: Vlahogianni et al. (2014)
 
-        # Data availability indicator: 1=single live source, 2=both.
-        # Passed to the trainer as an uncertainty-aware feature.
-        # Reference: El Faouzi et al. (2011) — source-reliability weighting.
-        "source_count": int(mapbox_spd is not None) + int(waze_spd is not None),
+        # Data availability: 1 = Mapbox only (Waze removed)
+        # Reference: El Faouzi et al. (2011) — source independence §4.
+        "source_count": 1,
 
         # PCU-weighted mixed-traffic density index.
         # When Waze is unavailable: Mapbox-only proxy (documented limitation).

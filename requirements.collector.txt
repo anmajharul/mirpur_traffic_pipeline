@@ -5,19 +5,13 @@
 # ============================================================
 
 # Supabase client
-supabase==2.28.3
+supabase==2.3.6
 
 # Environment variable loading (used by config.py)
 python-dotenv==1.0.1
 
 # HTTP / REST calls (Mapbox, WeatherAPI)
 requests==2.31.0
-
-# Waze crowd-sourced speed (unofficial API wrapper)
-# Note: GitHub Actions Azure IPs are not blocked by Waze.
-# The collector on Cloud Run reads from waze_speed_cache
-# written by the waze_cache.yml GitHub Actions workflow.
-WazeRouteCalculator==0.15
 
 # Numerical / tabular processing
 numpy==1.26.4

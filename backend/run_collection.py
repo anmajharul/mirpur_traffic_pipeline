@@ -8,7 +8,7 @@ Purpose:
 
 WHAT IT DOES per run:
   - Calls Mapbox driving-traffic API for each corridor (real-time ETA)
-  - Calls Waze crowd-sourced routing (Azure IP → not blocked)
+  - Optionally sends data to training DB.
   - Calls WeatherAPI for Dhaka AQI + meteorological data
   - Queries MRT schedule status
   - Fuses speeds via fusion.py (anomaly detection + confidence scoring)

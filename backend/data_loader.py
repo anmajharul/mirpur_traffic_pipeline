@@ -10,7 +10,6 @@ Purpose:
 
 LEAKAGE COLUMNS REMOVED (exhaustive):
     mapbox_speed    → one component of fused speed_kmh
-    waze_speed      → one component of fused speed_kmh
     data_confidence → post-hoc fusion quality (not available at inference)
     anomaly_ratio   → computed from mapbox+waze (inference unavailable)
     speed_kmh       → derived from actual_eta_min (TARGET PROXY)
@@ -57,7 +56,6 @@ BDT = timezone(timedelta(hours=6))
 LEAKAGE_COLS = [
     # Source speed components (not available at inference)
     "mapbox_speed",
-    "waze_speed",
     "data_confidence",
     "anomaly_ratio",
 

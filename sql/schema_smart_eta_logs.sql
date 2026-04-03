@@ -20,7 +20,6 @@ CREATE TABLE IF NOT EXISTS public.smart_eta_logs (
     created_at timestamp with time zone NULL DEFAULT now(),
     direction text NOT NULL,
     mapbox_speed double precision NULL,
-    waze_speed double precision NULL,
     congestion_percent double precision NULL,
     severity_status text NULL,
     severity_index integer NULL,

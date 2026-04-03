@@ -33,9 +33,9 @@ logging.basicConfig(level=logging.INFO, format="%(message)s")
 
 # ---------------------------------------------------------------------------
 # FASTAPI APP
-# Data collection has been moved to Cloud Run Jobs (mirpur-collector) and
-# GitHub Actions (waze_cache.yml, multi_source_data_ingestion.yml).
-# This app serves as the Inference API for the Mirpur Traffic dashboard.
+# Data collection has been moved to Cloud Run Jobs (mirpur-collector)
+# and scheduled triggers. This app serves as the Inference API for 
+# the Mirpur Traffic dashboard.
 # ---------------------------------------------------------------------------
 app = FastAPI(title="Mirpur Traffic AI Inference API")
 model_lock = Lock()

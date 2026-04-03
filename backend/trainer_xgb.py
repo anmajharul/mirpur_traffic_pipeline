@@ -50,6 +50,7 @@ from typing import Optional, Dict
 
 from config import SUPABASE_URL, SUPABASE_KEY
 from data_loader import load_and_preprocess_data
+from evaluation import evaluate_model
 
 logging.basicConfig(level=logging.INFO)
 
@@ -254,16 +255,21 @@ FEATURE_COLS = [
     "distance_km",
     "is_anomaly",
 
-    # Source availability: 1=Mapbox only, 2=Mapbox+Waze.
-    # Captures uncertainty under partial upstream outage.
-    # Reference: El Faouzi et al. (2011) Information Fusion §3.
+    # Mapbox vs historical baseline divergence.
+    # Positive → current slower than historical (congestion)
+    # Negative → current faster (unusual free-flow)
+    # Reference: Luxen & Vetter (2011) — OSRM static baseline.
+    "osrm_divergence",
+
+    # Source availability: now 1 (Mapbox only). Waze removed for independence.
+    # Reference: El Faouzi et al. (2011) Information Fusion §4.
     "source_count",
 
     # ── Interaction feature ─────────────────────────────────────────────────
     # rain_x_peak_hour = rain_mm × is_peak_hour
-    # Captures disproportionate speed degradation during rainy peak hours
-    # in Dhaka (rainfall ×2.1 congestion multiplier, JICA 2015 §4.2).
-    # Reference: Goodfellow et al. (2016) DLbook §6.4 — feature interactions.
+    # Captures compound effect of precipitation and peak-hour congestion.
+    # Reference: Agarwal, M. et al. (2022). Weather-induced traffic disruption
+    #   on urban arterials. TR Part D, 106, 103258.
     "rain_x_peak_hour",
 ]
 
@@ -449,10 +455,22 @@ def train_model(
     # Hard leakage guard (CRITICAL)
     _assert_no_leakage(available_features)
 
-    # Walk-forward CV
+    # Walk-forward CV (for robustness validation)
     cv_result = walk_forward_cv(df, available_features, target_col)
 
-    # Final model (on ALL data)
+    # ------------------------------------------------------------------
+    # HOLD-OUT EVALUATION & PAPER METRICS
+    # evaluate_model performs a strict 80/20 temporal split and generates
+    # baseline comparisons (OSRM, Historical Average) required for Table 3.
+    # ------------------------------------------------------------------
+    # Instantiate a fresh model for evaluation to avoid leaking fitted state
+    eval_model = xgb.XGBRegressor(
+        n_estimators=200, max_depth=6, learning_rate=0.05,
+        subsample=0.8, colsample_bytree=0.8, random_state=42, n_jobs=1
+    )
+    eval_report = evaluate_model(df, eval_model, available_features, target_col)
+
+    # Final model (on ALL data for deployment)
     X = df[available_features].copy()
     y = df[target_col].values
 
@@ -517,17 +535,26 @@ def train_model(
             "cv_ci95_upper":     cv_result.get("ci_95_upper"),
             "cv_n_folds":        cv_result.get("n_folds"),
 
-            # ── Schema-aliased metric columns ──────────────────────────
-            # Some schema versions expose these as top-level columns.
-            "model_mae":         cv_result.get("mean_mae"),
-            "model_rmse":        cv_result.get("mean_rmse"),
-            "model_mape":        cv_result.get("mean_mape"),
-            "mae_ci_lower":      cv_result.get("ci_95_lower"),
-            "mae_ci_upper":      cv_result.get("ci_95_upper"),
-            # RMSE CI is derived from the same bootstrap distribution as MAE CI.
-            # Reported here per schema; note they share the same interval bounds.
-            "rmse_ci_lower":     cv_result.get("ci_95_lower"),
-            "rmse_ci_upper":     cv_result.get("ci_95_upper"),
+            # ── Schema-aliased metric columns (Hold-out Test Set) ──────
+            # Replaced CV metrics with strict temporal hold-out metrics from eval_report
+            "model_mae":         eval_report.get("model_mae"),
+            "model_rmse":        eval_report.get("model_rmse"),
+            "model_mape":        eval_report.get("model_mape"),
+            "mae_ci_lower":      eval_report.get("model_mae_ci95", [None, None])[0],
+            "mae_ci_upper":      eval_report.get("model_mae_ci95", [None, None])[1],
+            "rmse_ci_lower":     eval_report.get("model_rmse_ci95", [None, None])[0],
+            "rmse_ci_upper":     eval_report.get("model_rmse_ci95", [None, None])[1],
+
+            # ── Baseline & Improvement metrics ──────────────────────────
+            "baseline_mae":      eval_report.get("baseline_mae"),
+            "baseline_rmse":     eval_report.get("baseline_rmse"),
+            "baseline_mape":     eval_report.get("baseline_mape"),
+            "improvement_mae_pct": eval_report.get("improvement_mae_pct"),
+            "improvement_rmse_pct": eval_report.get("improvement_rmse_pct"),
+            "error_mean":        eval_report.get("error_mean"),
+            "error_std":         eval_report.get("error_std"),
+            "corridor_mae":      eval_report.get("corridor_mae"),
+            "notes":             "Metrics include OSRM baseline comparisons for Paper Table 3",
 
             # ── Hyperparameters (reproducibility record) ───────────────
             # Fixed values justified by inner 3-fold grid search over

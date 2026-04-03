@@ -2,43 +2,32 @@
 fusion.py — Q1 DEFENSIBLE TRAFFIC DATA FUSION MODULE
 ======================================================
 Purpose:
-- Fuse multi-source probe speeds (Mapbox + Waze) for Dhaka arterials
-- Anomaly detection via TEMPORAL z-score (NOT spatial ratio threshold)
-- Dynamic PCU scaling via congestion index (NOT fixed 1.15x multiplier)
+- Anomaly detection via TEMPORAL z-score (Ahmed & Cook 1979)
+- Dynamic PCU scaling via congestion index (Chandra & Sikdar 2000)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 SCIENTIFIC VALIDITY NOTES (Q1 Reviewer-proof)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-1. WAZE ≠ INDEPENDENT SENSOR (Documented Limitation)
-   Mapbox and Waze are BOTH algorithmic routing engines, not
-   independent physical sensors. They share overlapping data sources
-   (GPS probe vehicles) and similar routing graph algorithms. Therefore:
-   - We do NOT apply independent-sensor statistical fusion (Kalman,
-     inverse-variance weighting) — that would violate independence.
-   - We treat Waze as a CORROBORATION SIGNAL only, not a second sensor.
-   - Their agreement/disagreement is used as a TEMPORAL ANOMALY INDICATOR,
-     not as a Bayesian fusion of independent measurements.
-   This limitation is disclosed in paper Section 3.2 (Data Acquisition).
-   Reference: El Faouzi et al. (2011) — fusion framework limitations §4.
+1. WAZE FULLY REMOVED (Documented Decision)
+   Mapbox and Waze are BOTH algorithmic routing engines sharing overlapping
+   GPS probe fleets. Fusing them violates the sensor independence assumption
+   required for statistical fusion (El Faouzi et al. 2011, §4).
+   Waze has been deprecated entirely in favor of an OSRM static routing baseline
+   to capture spatial divergence (current vs historical).
+   Reference: El Faouzi et al. (2011). Information Fusion.
 
-2. ANOMALY THRESHOLD — TEMPORAL z-SCORE (NOT fixed ratio)
-   Previous version used a fixed 0.30 ratio threshold.
-   This is replaced by a TEMPORAL z-score:
+2. ANOMALY THRESHOLD — TEMPORAL z-SCORE (NOT spatial ratio)
+   Anomaly detection based on spatial disagreement between Waze and Mapbox
+   is mathematically unfounded. Replaced by a TEMPORAL z-score:
      z_t = |v_t - μ_{t-N:t-1}| / σ_{t-N:t-1}
-     anomaly if z_t > 2.0 (2σ rule, Ahmed & Cook 1979)
-   The ratio between Mapbox and Waze is used ONLY for fusion speed
-   selection, not for anomaly detection. This separates two concerns.
+     anomaly if z_t > 2.0 (2σ rule)
    Reference: Ahmed & Cook (1979). TRR 722, 1-9.
 
 3. PCU SCALING — DYNAMIC (NOT fixed 1.15x multiplier)
-   Previous version: scale = 1.15 if is_anomaly else 1.0
-   This is WRONG because:
-   - HCM §11.3.3 describes capacity reduction in lane-based flow
-   - Dhaka traffic is non-lane-based (heterogeneous)
-   - PCU ≠ capacity; mapping capacity drop to PCU has no theoretical basis
+   HCM §11.3.3 lane-based capacity multipliers cannot be applied to
+   non-lane-based vehicle equivalence units (PCU).
    New formula: PCU_d = density_proxy × FLEET_PCU × (1 + α × CI)
-   where CI = TTI - 1 = congestion intensity, α = 0.15 (calibrated)
    Reference: Chandra & Sikdar (2000). Road & Transport Research, 9(3).
 
 REFERENCES:
@@ -59,7 +48,7 @@ REFERENCES:
     Information Fusion, 12(1), 4-10.
     https://doi.org/10.1016/j.inffus.2010.06.001
     [Basis: documented limitation — fusion requires source independence;
-     routing engines share overlapping data sources (violation documented)]
+     Waze was removed precisely because this assumption is violated]
 
 [4] Bachmann, C. et al. (2013). A comparison of two common approaches for
     heterogeneous traffic data fusion via Bluetooth and aerial sensing.
@@ -128,18 +117,7 @@ PCU_ALPHA = 0.15
 # ─────────────────────────────────────────────────────────────────────────────
 ANOMALY_Z_THRESHOLD = 2.0
 
-# ─────────────────────────────────────────────────────────────────────────────
-# SPATIAL RATIO THRESHOLD (Waze vs Mapbox)
-# Used ONLY for fusion speed selection — NOT for anomaly detection.
-# Empirically calibrated as the 95th percentile of
-# |mapbox - waze| / mean_speed from N=2000 Mirpur-10 probe observations.
-# Empirical value: 0.287 ≈ 0.30 (rounded conservatively).
-# Sensitivity analysis: RMSE stable in range [0.25, 0.35].
-# (Reported in paper Section 3.2, Figure 3.)
-# Reference: Bachmann et al. (2013), Section 4.2.
-#             https://doi.org/10.1016/j.trc.2012.09.003
-# ─────────────────────────────────────────────────────────────────────────────
-SPATIAL_RATIO_THRESHOLD = 0.30
+
 
 
 def detect_temporal_anomaly(
@@ -267,81 +245,4 @@ def compute_dynamic_pcu(
     return float(round(pcu_index, 4)), "dynamic_ci_scaled"
 
 
-def fuse_speeds(
-    mapbox_spd: float | None,
-    waze_spd: float | None,
-) -> tuple[float | None, float, int]:
-    """
-    Multi-source probe speed fusion for Dhaka arterials.
 
-    IMPORTANT LIMITATION (must disclose in paper §3.2):
-        Mapbox and Waze are BOTH algorithmic routing engines that share
-        overlapping upstream data sources (GPS probe fleets, road graph).
-        They do NOT satisfy sensor independence assumptions required for
-        Kalman or inverse-variance fusion (El Faouzi et al. 2011, §4).
-        This function is a CORROBORATION approach, not independent fusion.
-
-    Strategy:
-        Both sources available:
-          - Compute symmetric relative difference ratio (Bachmann 2013, Eq.3)
-            ratio = |mapbox - waze| / ((mapbox + waze) / 2)
-          - If ratio > SPATIAL_RATIO_THRESHOLD (0.30, 95th percentile):
-              → disagreement → conservative average (not anomaly detection)
-          - Else → use Mapbox baseline (algorithmic stability)
-        Single source: return with reduced interpretive confidence
-        No source   : return None
-
-    NOTE: Anomaly detection is performed SEPARATELY via detect_temporal_anomaly()
-          using rolling historical baseline. The spatial ratio here is used
-          ONLY for fusion speed selection (corroboration).
-
-    Returns:
-        (fused_speed, confidence, is_spatial_disagreement)
-        fused_speed: fused speed (km/h)
-        confidence: interpretive weight [0,1] — NOT a calibrated probability
-                    (must be documented as such in paper §3.2)
-        is_spatial_disagreement: 1 if Mapbox/Waze materially disagree
-
-    References:
-        El Faouzi et al. (2011). https://doi.org/10.1016/j.inffus.2010.06.001
-        Bachmann et al. (2013). https://doi.org/10.1016/j.trc.2012.09.003
-    """
-    # ── No source ────────────────────────────────────────────────────────────
-    if mapbox_spd is None and waze_spd is None:
-        logging.warning("[FUSION] No probe sources available")
-        return None, 0.0, 0
-
-    # ── Single source ─────────────────────────────────────────────────────────
-    if mapbox_spd is None:
-        # Waze only — reduced confidence (no corroboration)
-        return float(round(waze_spd, 2)), 0.5, 0  # type: ignore[arg-type]
-
-    if waze_spd is None:
-        # Mapbox only — standard single-source confidence
-        return float(round(mapbox_spd, 2)), 0.7, 0
-
-    # ── Both sources — symmetric relative difference ───────────────────────────
-    # Formula: ratio = |v_A - v_B| / ((v_A + v_B) / 2)
-    # Reference: Bachmann et al. (2013), Eq. 3.
-    # https://doi.org/10.1016/j.trc.2012.09.003
-    diff  = abs(mapbox_spd - waze_spd)
-    denom = max((mapbox_spd + waze_spd) / 2.0, 1e-6)
-    ratio = diff / denom
-
-    spatial_disagree = 1 if ratio > SPATIAL_RATIO_THRESHOLD else 0
-
-    if spatial_disagree:
-        # Sources materially disagree → conservative equal-weight average
-        # Reduces noise amplification without assuming which source is correct.
-        # Confidence reduced to 0.55: neither source dominant.
-        # Reference: El Faouzi et al. (2011), §3.1.
-        fused = (mapbox_spd + waze_spd) / 2.0
-        conf  = 0.55
-    else:
-        # Sources agree → trust Mapbox baseline (algorithmic stability)
-        # Confidence 0.80: 20% residual budget for routing approximation error.
-        # Reference: Bachmann et al. (2013), Section 4.3.
-        fused = float(mapbox_spd)
-        conf  = 0.80
-
-    return float(round(fused, 2)), float(round(conf, 3)), spatial_disagree
