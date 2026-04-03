@@ -8,6 +8,15 @@ steps:
       '.'
     ]
 
+  # Step 1: Build Trainer Image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: [
+      'build', 
+      '-t', 'us-central1-docker.pkg.dev/project-08246cd8-45a6-45ac-89f/mirpur-repo/mirpur-trainer:latest', 
+      '-f', 'Dockerfile.trainer',
+      '.'
+    ]
+
   # Step 1: Build API Image
   - name: 'gcr.io/cloud-builders/docker'
     args: [
@@ -17,15 +26,19 @@ steps:
       '.'
     ]
 
-  # Step 2: Push Collector Image
+  # Step 3: Push Collector Image
   - name: 'gcr.io/cloud-builders/docker'
     args: ['push', 'us-central1-docker.pkg.dev/project-08246cd8-45a6-45ac-89f/mirpur-repo/mirpur-collector:latest']
 
-  # Step 3: Push API Image
+  # Step 4: Push Trainer Image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'us-central1-docker.pkg.dev/project-08246cd8-45a6-45ac-89f/mirpur-repo/mirpur-trainer:latest']
+
+  # Step 5: Push API Image
   - name: 'gcr.io/cloud-builders/docker'
     args: ['push', 'us-central1-docker.pkg.dev/project-08246cd8-45a6-45ac-89f/mirpur-repo/mirpur-api:latest']
 
-  # Step 4: Deploy Collector as a Cloud Run Job
+  # Step 6: Deploy Collector as a Cloud Run Job
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: gcloud
     args: [
@@ -38,7 +51,20 @@ steps:
       '--set-env-vars=SUPABASE_URL=$_SUPABASE_URL,SUPABASE_KEY=$_SUPABASE_KEY'
     ]
 
-  # Step 5: Deploy API to Cloud Run Service
+  # Step 7: Deploy Trainer as a Cloud Run Job
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args: [
+      'run', 'jobs', 'deploy', 'mirpur-trainer-job',
+      '--image', 'us-central1-docker.pkg.dev/project-08246cd8-45a6-45ac-89f/mirpur-repo/mirpur-trainer:latest',
+      '--region', 'us-central1',
+      '--memory', '1Gi',
+      '--task-timeout', '1800s',
+      '--max-retries', '1',
+      '--set-env-vars=SUPABASE_URL=$_SUPABASE_URL,SUPABASE_KEY=$_SUPABASE_KEY'
+    ]
+
+  # Step 8: Deploy API to Cloud Run Service
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: gcloud
     args: [
@@ -55,6 +81,7 @@ steps:
 
 images:
   - 'us-central1-docker.pkg.dev/project-08246cd8-45a6-45ac-89f/mirpur-repo/mirpur-collector:latest'
+  - 'us-central1-docker.pkg.dev/project-08246cd8-45a6-45ac-89f/mirpur-repo/mirpur-trainer:latest'
   - 'us-central1-docker.pkg.dev/project-08246cd8-45a6-45ac-89f/mirpur-repo/mirpur-api:latest'
 
 options:
