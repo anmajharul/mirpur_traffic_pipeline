@@ -69,7 +69,7 @@ mirpur_traffic_ai/
 │
 ├── web_app.py                  # FastAPI inference/dashboard endpoints
 ├── Dockerfile.collector        # Isolated GCP image definitions
-└── requirements.txt            # Dep. lockfile
+└── requirements.txt            # Dep. lockfiles
 ```
 
 ---
