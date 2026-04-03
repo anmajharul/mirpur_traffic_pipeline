@@ -47,7 +47,8 @@ steps:
       '--platform', 'managed',
       '--memory', '512Mi',
       '--min-instances', '0',
-      '--allow-unauthenticated'
+      '--allow-unauthenticated',
+      '--port', '8000'
     ]
 
 images:
