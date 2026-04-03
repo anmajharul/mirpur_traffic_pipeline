@@ -5,7 +5,7 @@
 # ============================================================
 
 # Supabase client
-supabase==2.3.6
+supabase==2.28.3
 
 # Environment variable loading (used by config.py)
 python-dotenv==1.0.1
