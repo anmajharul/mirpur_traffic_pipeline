@@ -48,7 +48,7 @@ steps:
       '--memory', '512Mi',
       '--task-timeout', '240s',
       '--max-retries', '1',
-      '--set-env-vars=SUPABASE_URL=$_SUPABASE_URL,SUPABASE_KEY=$_SUPABASE_KEY'
+      '--set-env-vars=SUPABASE_URL=$_SUPABASE_URL,SUPABASE_KEY=$_SUPABASE_KEY,MAPBOX_TOKEN=$_MAPBOX_TOKEN,WEATHER_API_KEY=$_WEATHER_API_KEY'
     ]
 
   # Step 7: Deploy Trainer as a Cloud Run Job
@@ -61,7 +61,7 @@ steps:
       '--memory', '1Gi',
       '--task-timeout', '1800s',
       '--max-retries', '1',
-      '--set-env-vars=SUPABASE_URL=$_SUPABASE_URL,SUPABASE_KEY=$_SUPABASE_KEY'
+      '--set-env-vars=SUPABASE_URL=$_SUPABASE_URL,SUPABASE_KEY=$_SUPABASE_KEY,MAPBOX_TOKEN=$_MAPBOX_TOKEN,WEATHER_API_KEY=$_WEATHER_API_KEY'
     ]
 
   # Step 8: Deploy API to Cloud Run Service
@@ -76,7 +76,7 @@ steps:
       '--min-instances', '0',
       '--allow-unauthenticated',
       '--port', '8000',
-      '--set-env-vars=SUPABASE_URL=$_SUPABASE_URL,SUPABASE_KEY=$_SUPABASE_KEY'
+      '--set-env-vars=SUPABASE_URL=$_SUPABASE_URL,SUPABASE_KEY=$_SUPABASE_KEY,MAPBOX_TOKEN=$_MAPBOX_TOKEN,WEATHER_API_KEY=$_WEATHER_API_KEY'
     ]
 
 images:
