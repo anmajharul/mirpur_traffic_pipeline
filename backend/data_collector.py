@@ -584,7 +584,7 @@ def collect(origin: str, dest: str, mapbox_token: str, direction_name: str) -> d
 
         "is_anomaly": is_anomaly,
         "anomaly_score": z_score,           # temporal z-score (Ahmed & Cook 1979)
-        "reason": "Temporal z-score (2σ)" if is_anomaly else None,
+        "reason": "Anomaly (> 2σ)" if is_anomaly else ("Normal Traffic" if z_score is not None else None),
 
         "actual_eta_min": eta,
         "travel_time_sec": eta * 60.0 if eta else None,  # [STORE_ONLY]
