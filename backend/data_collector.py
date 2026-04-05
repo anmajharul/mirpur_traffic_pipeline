@@ -339,7 +339,25 @@ def get_mapbox_data(origin: str, dest: str, token: str) -> dict | None:
 #   Reference: Chandra & Sikdar (2000); CSIR-CRRI (2017) Indo-HCM.
 # -------------------------------------------------
 FLEET_PCU = 0.45 * 0.5 + 0.30 * 1.0 + 0.15 * 1.5 + 0.10 * 2.5  # = 1.025
-PCU_ALPHA = 0.15  # calibrated via grid search on validation set
+# PCU_ALPHA — sensitivity parameter for dynamic PCU scaling.
+# VALUE: 0.15 = midpoint of empirical range [0.10, 0.20] documented in
+#   Chandra & Sikdar (2000) for non-lane-based heterogeneous urban traffic.
+# NOTE: This is NOT from grid search. No field data exists to calibrate α
+#   for Mirpur-10 specifically. Using the published midpoint is the standard
+#   practice when primary calibration data is unavailable.
+# Paper §3.2 must state: "α = 0.15, adopted as the midpoint of the
+#   empirical sensitivity range [0.10, 0.20] established in Chandra &
+#   Sikdar (2000) for South Asian non-lane-based mixed traffic conditions."
+# References:
+#   Chandra, S. & Sikdar, P.K. (2000). Dynamic PCU for intersection
+#     capacity estimation. Road & Transport Research, 9(3).
+#     https://www.semanticscholar.org/paper/DYNAMIC-PCU-FOR-INTERSECTION-
+#     CAPACITY-ESTIMATION-Chandra-Sikdar/7554e3bd3f604c50f4404ac72d6eb3f2b9fad69d
+#   Chandra, S. & Sikdar, P.K. (2000). Factors affecting PCU in mixed
+#     traffic situations on urban roads. Road & Transport Research, 9(3).
+#     https://www.semanticscholar.org/paper/Factors-Affecting-PCU-in-Mixed-
+#     Traffic-Situations-Chandra-Sikdar/6df27112d1c08b3b3d6aa92a70be7ad208be175b
+PCU_ALPHA = 0.15  # Chandra & Sikdar (2000) midpoint of [0.10, 0.20] range
 
 
 def compute_pcu_index(

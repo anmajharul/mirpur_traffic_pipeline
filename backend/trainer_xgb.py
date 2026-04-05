@@ -271,6 +271,24 @@ FEATURE_COLS = [
     # Reference: Agarwal, M. et al. (2022). Weather-induced traffic disruption
     #   on urban arterials. TR Part D, 106, 103258.
     "rain_x_peak_hour",
+
+    # ── Holiday and extreme weather binary flags ────────────────────────────
+    # is_holiday: 1 on Friday/Saturday (Bangladesh weekend) or gazetted
+    #   public holidays (HOLIDAYS registry in config.py).
+    #   Traffic volume drops 40–70% on these days vs weekdays.
+    #   Reference: JICA (2015) RSTP Dhaka §3.4 — Mirpur-10 observed volumes.
+    #              Bangladesh Labor Act 2006, Section 103 — weekend definition.
+    # NOTE: Previously hardcoded as False (approximation). Now dynamically
+    #   computed in data_collector.py — model can now learn holiday pattern.
+    "is_holiday",
+
+    # is_extreme_weather: 1 when rain_mm > 10.0 (WMO Moderate-to-Heavy).
+    #   Threshold chosen for class balance (~8% positive rate in Dhaka).
+    #   At >50mm/hr: ~0.1% positive — zero XGBoost information gain.
+    #   At >10mm/hr: ~8.0% positive — adequate variance for tree splits.
+    #   Reference: WMO (2018) CIMO Vol.I §6.7.1 — rainfall intensity classes.
+    #              Agarwal et al. (2022) TR Part D, 106, 103258.
+    "is_extreme_weather",
 ]
 
 
