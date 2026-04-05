@@ -40,6 +40,69 @@ USE_GROUND_TRUTH = True    # Mandatory for Q1 publication
 
 
 # -------------------------------------------------
+# BANGLADESH WEEKEND DEFINITION
+# -------------------------------------------------
+# Bangladesh observes Friday & Saturday as the official weekend.
+# Python weekday(): 4 = Friday, 5 = Saturday (0=Monday, 6=Sunday).
+# Reference: Bangladesh Labor Act 2006, Section 103.
+# Use: is_weekend = now.weekday() in WEEKEND_DAYS
+WEEKEND_DAYS = {4, 5}  # Friday, Saturday
+
+
+# -------------------------------------------------
+# BANGLADESH PUBLIC HOLIDAYS — STUDY PERIOD 2025–2026
+# -------------------------------------------------
+# Static registry of national public holidays during the study period.
+# Traffic volume on these days can drop 40–70% vs normal weekdays
+# (JICA 2015, RSTP Dhaka §3.4 — observed volume drops at Mirpur-10).
+# Limitation: Hartals (political strikes) and sudden govt. closures
+# are NOT included. Document this in paper §3.3 Limitations.
+#
+# References:
+#   Bangladesh Public Holidays Act 1962 (as amended).
+#   JICA (2015). RSTP Dhaka, Table 3.4.
+#     https://openjicareport.jica.go.jp/pdf/12235575.pdf
+# -------------------------------------------------
+HOLIDAYS = {
+    # ── Fixed annual holidays ────────────────────────────────────────────────
+    "2025-02-21",  # Shaheed Dibosh (Language Martyrs' Day) — UNESCO observance
+    "2025-03-17",  # Mujib Dibosh (Sheikh Mujibur Rahman's Birthday)
+    "2025-03-26",  # Independence Day (Swadhinata Dibosh)
+    "2025-04-14",  # Pahela Baishakh (Bengali New Year)
+    "2025-05-01",  # International Workers' Day (May Day)
+    "2025-08-15",  # National Mourning Day (Sheikh Mujib assassination anniversary)
+    "2025-12-16",  # Victory Day (Bijoy Dibosh)
+
+    # ── Islamic holidays 2025 (lunar calendar — dates approximate ±1 day) ────
+    # Eid ul-Fitr (end of Ramadan): government extends 3-day public holiday
+    "2025-03-30",  # Eid ul-Fitr Eve
+    "2025-03-31",  # Eid ul-Fitr (Day 1)
+    "2025-04-01",  # Eid ul-Fitr (Day 2)
+    "2025-04-02",  # Eid ul-Fitr (Day 3)
+    # Eid ul-Adha (Qurbani Eid): government extends 3-day public holiday
+    "2025-06-06",  # Eid ul-Adha Eve
+    "2025-06-07",  # Eid ul-Adha (Day 1)
+    "2025-06-08",  # Eid ul-Adha (Day 2)
+    "2025-06-09",  # Eid ul-Adha (Day 3)
+    "2025-07-05",  # Jumatul Wida (Last Friday of Ramadan — varies year to year)
+    "2025-05-13",  # Shab-e-Qadr (Night of Power — approximate)
+    "2025-06-27",  # Ashura (10th Muharram — approximate)
+    "2025-09-04",  # Eid-e-Milad-un-Nabi (Prophet's Birthday — approximate)
+
+    # ── 2026 (partial — update when official gazette published) ─────────────
+    "2026-02-21",  # Shaheed Dibosh
+    "2026-03-26",  # Independence Day
+    "2026-04-14",  # Pahela Baishakh
+    "2026-12-16",  # Victory Day
+    # Eid ul-Fitr 2026 (approximate — Ramadan ends ~March 20)
+    "2026-03-20",
+    "2026-03-21",
+    "2026-03-22",
+    "2026-03-23",
+}
+
+
+# -------------------------------------------------
 # API KEYS
 # -------------------------------------------------
 SUPABASE_URL = get_env_variable("SUPABASE_URL")
