@@ -104,11 +104,17 @@ FLEET_PCU = 0.45 * 0.5 + 0.30 * 1.0 + 0.15 * 1.5 + 0.10 * 2.5  # = 1.025
 # ─────────────────────────────────────────────────────────────────────────────
 # PCU SENSITIVITY PARAMETER (α)
 # Formula: PCU_d = base_pcu × (1 + α × CI)  where CI = TTI - 1
-# α = 0.15 selected via grid search over {0.05, 0.10, 0.15, 0.20}
-# on validation partition only (no test leakage).
+#
+# α = 0.15 is the midpoint of the empirical range [0.10, 0.20] documented
+# by Chandra & Sikdar (2000) for non-lane-based heterogeneous traffic.
+# NOTE: This is NOT from grid search over this dataset. No field-calibrated
+# ground truth exists for Mirpur-10 specifically. Using the published
+# midpoint is the standard practice when primary calibration data is absent.
+# Paper §3.2 must state: "α = 0.15, adopted as the midpoint of [0.10, 0.20]
+# per Chandra & Sikdar (2000)."
 # Reference: Chandra & Sikdar (2000). Road & Transport Research, 9(3).
 # ─────────────────────────────────────────────────────────────────────────────
-PCU_ALPHA = 0.15
+PCU_ALPHA = 0.15  # Chandra & Sikdar (2000) midpoint of [0.10, 0.20]
 
 # ─────────────────────────────────────────────────────────────────────────────
 # TEMPORAL ANOMALY THRESHOLD (z-score)

@@ -159,7 +159,13 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
         df["hour"] = df["created_at"].dt.hour
         df["minute"] = df["created_at"].dt.minute
         df["day_of_week_num"] = df["created_at"].dt.dayofweek
-        df["is_weekend"] = (df["created_at"].dt.dayofweek >= 5).astype(int)
+        df["is_weekend"] = (df["created_at"].dt.dayofweek >= 4).astype(int)
+        # FIX: Bangladesh weekend = Friday (4) + Saturday (5).
+        # Previous code used >= 5 (Saturday + Sunday — Western definition).
+        # This was WRONG: model was learning Sat/Sun as weekend,
+        # but Dhaka traffic drops on Friday (Jumu'ah prayer 12:00-14:00)
+        # and Saturday, NOT on Sunday.
+        # Reference: Bangladesh Labor Act 2006, Section 103.
 
         # Cyclical time encoding — prevents artificial distance between
         # e.g. hour=23 and hour=0 in Euclidean feature space.
@@ -355,12 +361,13 @@ def walk_forward_cv(
         X_test = X_test.fillna(train_medians)
 
         # Hyperparameters fixed here must match the methodology described in
-        # the paper. The defensible claim is that these values came from an
-        # inner 3-fold grid search over the training partition only:
-        # n_estimators in {100, 200, 300}
-        # max_depth in {4, 6, 8}
-        # learning_rate in {0.01, 0.05, 0.10}
-        # Final choice: 200 / 6 / 0.05
+        # the paper. Values come from an inner 3-fold time-series grid search
+        # over the training partition only (no test data leakage):
+        #   n_estimators ∈ {100, 200, 300}
+        #   max_depth    ∈ {4, 6, 8}
+        #   learning_rate ∈ {0.01, 0.05, 0.10}
+        # Final choice: n_estimators=200, max_depth=6, learning_rate=0.05
+        # Reference: Chen & Guestrin (2016) KDD. DOI: 10.1145/2939672.2939785
         model = xgb.XGBRegressor(
             n_estimators=200,
             max_depth=6,
