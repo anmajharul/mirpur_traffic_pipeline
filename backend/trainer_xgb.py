@@ -653,10 +653,14 @@ def forecast_24h(model: xgb.XGBRegressor, df: pd.DataFrame) -> list:
     df_with_hour = df.copy()
     if "created_at" in df_with_hour.columns:
         df_with_hour["_hour"] = df_with_hour["created_at"].dt.hour
+    elif "hour_of_day" in df_with_hour.columns:
+        df_with_hour["_hour"] = df_with_hour["hour_of_day"]
     elif "hour" in df_with_hour.columns:
         df_with_hour["_hour"] = df_with_hour["hour"]
     else:
-        df_with_hour["_hour"] = 12  # fallback
+        # If temporal context is entirely missing, we cannot establish diurnal variation.
+        logging.warning("[TRAINER] No temporal columns found for hourly median estimation")
+        df_with_hour["_hour"] = -1  # Explicit null-group
 
     hourly_medians: Dict[int, float] = {}
     if "actual_eta_min" in df_with_hour.columns:
@@ -664,7 +668,11 @@ def forecast_24h(model: xgb.XGBRegressor, df: pd.DataFrame) -> list:
         raw_medians = df_with_hour.groupby("_hour")["actual_eta_min"].median().to_dict()
         hourly_medians = {int(k): float(v) for k, v in raw_medians.items()}
 
-    global_median = float(df["actual_eta_min"].median()) if "actual_eta_min" in df.columns else 5.0
+    if "actual_eta_min" not in df.columns or df["actual_eta_min"].empty:
+        logging.error("[TRAINER] Missing actual_eta_min for forecasting lag baseline")
+        return []
+        
+    global_median = float(df["actual_eta_min"].median())
 
     for offset_h in range(24):
         forecast_time = now + timedelta(hours=offset_h)

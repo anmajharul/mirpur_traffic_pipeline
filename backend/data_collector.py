@@ -536,7 +536,7 @@ def collect(origin: str, dest: str, mapbox_token: str, direction_name: str) -> d
     # -----------------------------------------------------------
     hour = now.hour
     is_peak = bool(7 <= hour <= 10 or 16 <= hour <= 20)
-    rain_mm = weather.get("rain_mm") or 0.0
+    rain_mm = weather.get("rain_mm")  # FIX: 0.0 was a dummy assumption masking API failures
 
     if 7 <= hour <= 10:
         time_slot = "morning_peak"
@@ -599,7 +599,7 @@ def collect(origin: str, dest: str, mapbox_token: str, direction_name: str) -> d
     #     on urban arterials. TR Part D, 106, 103258.
     #     https://doi.org/10.1016/j.trd.2022.103258
     # -----------------------------------------------------------
-    is_extreme_weather = int(rain_mm > 10.0)  # 1 when >= Moderate-Heavy (WMO ≥10 mm/hr)
+    is_extreme_weather = int(rain_mm > 10.0) if rain_mm is not None else None  # 1 when >= Moderate-Heavy
 
     return {
         "status": "OK",
@@ -717,5 +717,5 @@ def collect(origin: str, dest: str, mapbox_token: str, direction_name: str) -> d
         #   on urban arterials: A systematic review. TR Part D, 106, 103258.
         #   https://doi.org/10.1016/j.trd.2022.103258
         #   [Basis: rainfall-congestion interaction in heterogeneous urban traffic]
-        "rain_x_peak_hour": round(rain_mm * int(is_peak), 4),
+        "rain_x_peak_hour": round(rain_mm * int(is_peak), 4) if rain_mm is not None else None,
     }

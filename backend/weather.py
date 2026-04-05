@@ -103,7 +103,7 @@ def compute_aqi(pm2_5: float | None, pm10: float | None) -> int | None:
 def default_weather():
     return {
         "temperature": None,
-        "rain_mm": 0.0,
+        "rain_mm": None,  # FIX: 0.0 was a dummy assumption masking missing data
         "wind_speed": None,
         "visibility_km": None,
         "humidity": None,
@@ -216,7 +216,7 @@ def fetch_weather(lat: float, lon: float, api_key: str) -> dict:
             r_raw = result["rain_mm"]
             if r_raw is not None:
                 r = float(r_raw)
-                result["rain_mm"] = r if 0 <= r <= 100 else 0.0
+                result["rain_mm"] = r if 0 <= r <= 100 else None
 
             w_raw = result["wind_speed"]
             if w_raw is not None:
