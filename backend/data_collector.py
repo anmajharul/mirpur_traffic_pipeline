@@ -81,7 +81,8 @@ from datetime import datetime, timezone, timedelta
 
 # Reference: Bachmann et al. (2013), TR Part C, 26, 12–26.
 
-from config import WEATHER_API_KEY, USE_GROUND_TRUTH, SUPABASE_URL, SUPABASE_KEY, HOLIDAYS, WEEKEND_DAYS  # type: ignore
+import holidays
+from config import WEATHER_API_KEY, USE_GROUND_TRUTH, SUPABASE_URL, SUPABASE_KEY, WEEKEND_DAYS  # type: ignore
 from weather import fetch_weather  # type: ignore
 from mrt import get_mrt_status  # type: ignore
 from freeflow import get_free_flow  # type: ignore
@@ -506,17 +507,18 @@ def collect(origin: str, dest: str, mapbox_token: str, direction_name: str) -> d
     # Bangladesh weekend: Friday (weekday=4) and Saturday (weekday=5).
     # Reference: Bangladesh Labor Act 2006, Section 103.
     #
-    # Public holidays: checked against HOLIDAYS registry in config.py.
+    # Public holidays: dynamically checked via 'holidays' python package.
     # Limitation: Hartals and unannounced closures are NOT included.
     # Document in paper §3.3 Limitations.
     #
     # is_holiday=1 when: (a) observation falls on Fri/Sat, OR
-    #                    (b) observation date is in HOLIDAYS registry.
-    # This replaces the previous hardcoded is_holiday=False approximation.
+    #                    (b) observation date is a Bangladesh public holiday.
     # -----------------------------------------------------------
-    obs_date_str = now.strftime("%Y-%m-%d")  # e.g. "2026-04-05" in BDT
+    obs_date = now.date()
+    bd_holidays = holidays.country_holidays('BD')
+
     is_holiday = int(
-        now.weekday() in WEEKEND_DAYS or obs_date_str in HOLIDAYS
+        now.weekday() in WEEKEND_DAYS or obs_date in bd_holidays
     )
     mrt_active, headway = get_mrt_status(now, is_holiday=bool(is_holiday))
 
@@ -669,7 +671,7 @@ def collect(origin: str, dest: str, mapbox_token: str, direction_name: str) -> d
 
         "mrt_status": int(mrt_active),
         "mrt_headway": headway,
-        "is_holiday": is_holiday,  # 1 = Fri/Sat or gazetted public holiday (HOLIDAYS registry)
+        "is_holiday": is_holiday,  # 1 = Fri/Sat or gazetted public holiday
 
         # -----------------------------------------------------------
         # TEMPORAL FEATURES (ML-usable — genuinely exogenous)

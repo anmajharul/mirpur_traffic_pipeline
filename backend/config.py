@@ -48,52 +48,8 @@ USE_GROUND_TRUTH = True    # Mandatory for Q1 publication
 # Use: is_weekend = now.weekday() in WEEKEND_DAYS
 WEEKEND_DAYS = {4, 5}  # Friday, Saturday
 
-
-# -------------------------------------------------
-# BANGLADESH PUBLIC HOLIDAYS — STUDY PERIOD 2025–2026
-# -------------------------------------------------
-# Static registry of national public holidays during the study period.
-# Traffic volume on these days can drop 40–70% vs normal weekdays
-# (JICA 2015, RSTP Dhaka §3.4 — observed volume drops at Mirpur-10).
-# Limitation: Hartals (political strikes) and sudden govt. closures
-# are NOT included. Document this in paper §3.3 Limitations.
-#
-# References:
-#   Bangladesh Public Holidays Act 1962 (as amended).
-#   JICA (2015). RSTP Dhaka, Table 3.4.
-#     https://openjicareport.jica.go.jp/pdf/12235575.pdf
-# -------------------------------------------------
-HOLIDAYS = {
-    # ── Fixed annual holidays (2026) ─────────────────────────────────────────
-    "2026-02-21",  # Shaheed Dibosh (Language Martyrs' Day)
-    "2026-03-17",  # Mujib Dibosh
-    "2026-03-26",  # Independence Day
-    "2026-04-14",  # Pahela Baishakh
-    "2026-05-01",  # May Day
-    "2026-08-15",  # National Mourning Day
-    "2026-12-16",  # Victory Day
-
-    # ── Islamic holidays 2026 (approximate ±1 day) ───────────────────────────
-    "2026-03-19", "2026-03-20", "2026-03-21", "2026-03-22",  # Eid ul-Fitr
-    "2026-05-26", "2026-05-27", "2026-05-28", "2026-05-29",  # Eid ul-Adha
-    "2026-06-16",  # Ashura
-    "2026-08-25",  # Eid-e-Milad-un-Nabi
-
-    # ── Fixed annual holidays (2027) ─────────────────────────────────────────
-    "2027-02-21",  # Shaheed Dibosh
-    "2027-03-17",  # Mujib Dibosh
-    "2027-03-26",  # Independence Day
-    "2027-04-14",  # Pahela Baishakh
-    "2027-05-01",  # May Day
-    "2027-08-15",  # National Mourning Day
-    "2027-12-16",  # Victory Day
-
-    # ── Islamic holidays 2027 (approximate ±1 day) ───────────────────────────
-    "2027-03-08", "2027-03-09", "2027-03-10", "2027-03-11",  # Eid ul-Fitr
-    "2027-05-15", "2027-05-16", "2027-05-17", "2027-05-18",  # Eid ul-Adha
-    "2027-06-05",  # Ashura
-    "2027-08-14",  # Eid-e-Milad-un-Nabi
-}
+# Note: Public holidays are computed dynamically using the 'holidays'
+# python package (holidays.country_holidays('BD')) in data_collector.py.
 
 
 # -------------------------------------------------

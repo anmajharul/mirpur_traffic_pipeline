@@ -280,7 +280,7 @@ FEATURE_COLS = [
 
     # ── Holiday and extreme weather binary flags ────────────────────────────
     # is_holiday: 1 on Friday/Saturday (Bangladesh weekend) or gazetted
-    #   public holidays (HOLIDAYS registry in config.py).
+    #   public holidays (dynamically checked via 'holidays' python package).
     #   Traffic volume drops 40–70% on these days vs weekdays.
     #   Reference: JICA (2015) RSTP Dhaka §3.4 — Mirpur-10 observed volumes.
     #              Bangladesh Labor Act 2006, Section 103 — weekend definition.
