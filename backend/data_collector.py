@@ -12,14 +12,9 @@ Purpose:
 - Temporal feature encoding for ML feature engineering
 - Weather condition ordinal encoding for XGBoost compatibility
 
-ARCHITECTURE NOTE (Waze REMOVED):
-  Waze has been fully removed from the data pipeline.
-  Reason: Waze and Mapbox are correlated routing engines sharing
-  overlapping GPS probe data. Their fusion violates sensor independence
-  assumptions (El Faouzi et al. 2011, \u00a74). The independence assumption
-  required for Kalman or inverse-variance fusion cannot be satisfied.
-  Replacement: OSRM (Open Source Routing Machine) provides a genuinely
-  different signal — static OSM-based routing with NO real-time traffic.
+ARCHITECTURE NOTE:
+  Uses single-source Mapbox for real-time telemetry to avoid sensor
+  correlation, supplemented by OSRM purely as a historical static baseline.
   The divergence between Mapbox (real-time) and OSRM (historical baseline)
   is a principled anomaly indicator: high divergence = unusual conditions.
   Reference: Luxen & Vetter (2011). ACM SIGSPATIAL 2011.
@@ -39,7 +34,7 @@ REFERENCES:
 [2] El Faouzi, N.E. et al. (2011). Data fusion in road traffic engineering.
     Information Fusion, 12(1), 4-10.
     https://doi.org/10.1016/j.inffus.2010.06.001
-    [Basis: Waze removed — independence assumption violated for routing engines]
+    [Basis: Single-source real-time approach ensures independence]
 
 [3] TRB (2022). Highway Capacity Manual, 7th Edition.
     Transportation Research Board. ISBN 978-0-309-08766-8.
@@ -83,10 +78,7 @@ import requests  # type: ignore
 import logging
 from datetime import datetime, timezone, timedelta
 
-# WazeRouteCalculator is NOT imported here intentionally.
-# GCP Cloud Run IPs are blocked by Waze. Waze data is collected by
-# GitHub Actions (Azure IP) via waze_cache.yml and cached in Supabase.
-# See _get_waze_from_cache() below.
+
 # Reference: Bachmann et al. (2013), TR Part C, 26, 12–26.
 
 from config import WEATHER_API_KEY, USE_GROUND_TRUTH, SUPABASE_URL, SUPABASE_KEY, HOLIDAYS, WEEKEND_DAYS  # type: ignore
@@ -286,13 +278,10 @@ def get_mapbox_data(origin: str, dest: str, token: str) -> dict | None:
 
 # -------------------------------------------------
 # OSRM STATIC SPEED FETCHER
-# Replaces Waze cache reader.
 #
-# WHY OSRM (not Waze):
-#   Waze is a routing engine sharing GPS probe data with Mapbox.
-#   Their fusion violates sensor independence (El Faouzi et al. 2011, \u00a74).
-#   OSRM is a Static routing engine using OSM road network data with
-#   NO real-time traffic. The divergence between Mapbox (real-time) and
+# WHY OSRM:
+#   OSRM provides a historical structural routing baseline that
+#   maintains sensor independence from real-time API sources (El Faouzi et al. 2011, \u00a74).
 #   OSRM (historical) is a principled anomaly feature.
 #
 # OSRM_DIVERGENCE FORMULA:
@@ -470,13 +459,13 @@ def collect(origin: str, dest: str, mapbox_token: str, direction_name: str) -> d
         return {"status": "Data unavailable"}
 
     # Fused speed = Mapbox only (single source, no spatial fusion)
-    # Waze removed: violates sensor independence (El Faouzi et al. 2011, §4)
+    # Single-source to maintain sensor independence (El Faouzi et al. 2011, §4)
     fused_spd = float(mapbox_spd)
     conf      = 0.80   # algorithmic routing baseline confidence
 
     ff = get_cached_free_flow(direction_name)
 
-    # ── OSRM static speed + ETA (replaces Waze) ────────────────────────────
+    # ── OSRM static speed + ETA ────────────────────────────────────────────────
     # OSRM provides static OSM-based routing (no real-time traffic).
     # Stored for two purposes:
     #   1. osrm_divergence: anomaly feature (Mapbox vs historical baseline)
@@ -555,7 +544,7 @@ def collect(origin: str, dest: str, mapbox_token: str, direction_name: str) -> d
         time_slot = "off_peak"
 
     # ── Temporal anomaly detection ────────────────────────────────────────────
-    # Uses temporal z-score (NOT spatial Mapbox-Waze ratio).
+    # Uses temporal z-score.
     # History: past speeds from same corridor to build rolling baseline.
     # Reference: Ahmed & Cook (1979). TRR 722, 1-9.
     # detect_temporal_anomaly() imported from fusion.py.
@@ -709,12 +698,12 @@ def collect(origin: str, dest: str, mapbox_token: str, direction_name: str) -> d
         # forecasting practice in the ITS literature.
         "horizon_min": 5,  # Reference: Vlahogianni et al. (2014)
 
-        # Data availability: 1 = Mapbox only (Waze removed)
+        # Data availability: 1 = Mapbox only
         # Reference: El Faouzi et al. (2011) — source independence §4.
         "source_count": 1,
 
         # PCU-weighted mixed-traffic density index.
-        # When Waze is unavailable: Mapbox-only proxy (documented limitation).
+        # Mapbox-only proxy (documented limitation).
         # References: JICA (2015) BD-P18; HCM 7e Table 11-11; Greenshields (1934).
         "pcu_index": pcu_index,
         "pcu_source": pcu_source,  # [STORE_ONLY] — not an ML feature

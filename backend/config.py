@@ -35,7 +35,7 @@ def get_env_variable(key: str, required: bool = True, default=None):
 # -------------------------------------------------
 # SCIENTIFIC VALIDATION FLAGS
 # -------------------------------------------------
-ENABLE_FUSION = True       # Mapbox-Waze weighted fusion enabled
+ENABLE_FUSION = False      # Spatial fusion disabled (uses single-source Mapbox)
 USE_GROUND_TRUTH = True    # Mandatory for Q1 publication
 
 

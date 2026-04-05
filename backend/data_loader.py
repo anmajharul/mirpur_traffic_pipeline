@@ -11,7 +11,7 @@ Purpose:
 LEAKAGE COLUMNS REMOVED (exhaustive):
     mapbox_speed    → one component of fused speed_kmh
     data_confidence → post-hoc fusion quality (not available at inference)
-    anomaly_ratio   → computed from mapbox+waze (inference unavailable)
+    # anomaly_ratio   → removed feature (inference unavailable)
     speed_kmh       → derived from actual_eta_min (TARGET PROXY)
     congestion_percent → = f(speed_kmh, free_flow) → target-derived
     tti             → = actual_eta_min / free_time → DIRECT target transform

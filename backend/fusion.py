@@ -9,16 +9,14 @@ Purpose:
 SCIENTIFIC VALIDITY NOTES (Q1 Reviewer-proof)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-1. WAZE FULLY REMOVED (Documented Decision)
-   Mapbox and Waze are BOTH algorithmic routing engines sharing overlapping
-   GPS probe fleets. Fusing them violates the sensor independence assumption
-   required for statistical fusion (El Faouzi et al. 2011, §4).
-   Waze has been deprecated entirely in favor of an OSRM static routing baseline
+1. OSRM STATIC BASELINE (Documented Decision)
+   OSRM provides a static historical routing baseline without real-time influence.
+   This offers a purely independent baseline distinct from algorithmic APIs like Mapbox.
    to capture spatial divergence (current vs historical).
    Reference: El Faouzi et al. (2011). Information Fusion.
 
 2. ANOMALY THRESHOLD — TEMPORAL z-SCORE (NOT spatial ratio)
-   Anomaly detection based on spatial disagreement between Waze and Mapbox
+   Anomaly detection based on spatial disagreement between baseline and real-time
    is mathematically unfounded. Replaced by a TEMPORAL z-score:
      z_t = |v_t - μ_{t-N:t-1}| / σ_{t-N:t-1}
      anomaly if z_t > 2.0 (2σ rule)
@@ -48,7 +46,7 @@ REFERENCES:
     Information Fusion, 12(1), 4-10.
     https://doi.org/10.1016/j.inffus.2010.06.001
     [Basis: documented limitation — fusion requires source independence;
-     Waze was removed precisely because this assumption is violated]
+     Algorithmic engines often violate this assumption]
 
 [4] Bachmann, C. et al. (2013). A comparison of two common approaches for
     heterogeneous traffic data fusion via Bluetooth and aerial sensing.
@@ -141,7 +139,7 @@ def detect_temporal_anomaly(
         anomaly = 1 if z_t > threshold_z else 0
 
     WHY TEMPORAL (not spatial ratio):
-        Spatial ratio |mapbox - waze| / mean is a corroboration score
+        Spatial ratio analysis (disabled to maintain strict independence)
         between correlated routing engines, not a statistically grounded
         anomaly criterion. Temporal deviation from a rolling baseline is
         statistically principled and generalizable across corridors.

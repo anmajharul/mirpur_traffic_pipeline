@@ -71,7 +71,7 @@ FORBIDDEN_FEATURES = {
     "speed_ratio",
     "congestion_percent",
     "mapbox_speed",
-    "waze_speed",
+    # removed specific sub-source speed logging
     "data_confidence",
     "anomaly_ratio",
     "free_flow_kmh",
@@ -267,7 +267,7 @@ FEATURE_COLS = [
     # Reference: Luxen & Vetter (2011) — OSRM static baseline.
     "osrm_divergence",
 
-    # Source availability: now 1 (Mapbox only). Waze removed for independence.
+    # Source availability: Single-source (Mapbox API).
     # Reference: El Faouzi et al. (2011) Information Fusion §4.
     "source_count",
 
