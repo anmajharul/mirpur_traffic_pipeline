@@ -707,9 +707,8 @@ def forecast_24h(model: xgb.XGBRegressor, df: pd.DataFrame) -> list:
         # Imputation: use column medians from historical training data.
         # CONSISTENCY FIX: training uses train-median imputation (walk_forward_cv).
         # Using 0 here (inference) would create train-inference distribution mismatch.
-        # Fallback to 0 only for columns with no historical data at all.
         train_medians = df[available_features].median()
-        input_row = input_row.fillna(train_medians).fillna(0.0)
+        input_row = input_row.fillna(train_medians)
 
         pred = float(model.predict(input_row)[0])
         pred = max(0.5, min(pred, 60.0))  # Physical clamp

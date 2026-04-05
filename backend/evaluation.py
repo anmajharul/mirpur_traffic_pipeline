@@ -363,16 +363,19 @@ def evaluate_model(
     #   during collection), use it. Otherwise mark as unavailable.
     # This avoids API calls during evaluation (batch efficiency).
     if "osrm_eta_min" in test_df.columns:
-        osrm_pred = test_df["osrm_eta_min"].fillna(test_df[target_col].mean()).values
-        report["osrm_mae"]  = mae(y_test, osrm_pred)
-        report["osrm_rmse"] = rmse(y_test, osrm_pred)
-        report["osrm_mape"] = mape(y_test, osrm_pred)
-        report["improvement_vs_osrm_mae_pct"] = round(
-            (report["osrm_mae"] - report["model_mae"]) / report["osrm_mae"] * 100, 2
-        )
-        report["improvement_vs_osrm_rmse_pct"] = round(
-            (report["osrm_rmse"] - report["model_rmse"]) / report["osrm_rmse"] * 100, 2
-        )
+        valid_idx = test_df["osrm_eta_min"].notna()
+        if valid_idx.sum() > 0:
+            osrm_pred = test_df.loc[valid_idx, "osrm_eta_min"].values
+            y_test_osrm = y_test[valid_idx]
+            report["osrm_mae"]  = mae(y_test_osrm, osrm_pred)
+            report["osrm_rmse"] = rmse(y_test_osrm, osrm_pred)
+            report["osrm_mape"] = mape(y_test_osrm, osrm_pred)
+            report["improvement_vs_osrm_mae_pct"] = round(
+                (report["osrm_mae"] - report["model_mae"]) / report["osrm_mae"] * 100, 2
+            )
+            report["improvement_vs_osrm_rmse_pct"] = round(
+                (report["osrm_rmse"] - report["model_rmse"]) / report["osrm_rmse"] * 100, 2
+            )
         logging.info(
             f"[EVAL] OSRM baseline → MAE={report['osrm_mae']:.3f}, "
             f"RMSE={report['osrm_rmse']:.3f}, MAPE={report['osrm_mape']:.2f}%"
