@@ -203,8 +203,7 @@ def compute_dynamic_pcu(
         Reference: Chandra & Sikdar (2000). Road & Transport Research, 9(3).
 
     PCU sensitivity parameter (α = 0.15):
-        Calibrated via grid search over {0.05, 0.10, 0.15, 0.20} on
-        validation partition only (no test data leakage).
+        Adopted as the midpoint of the empirical [0.10, 0.20] range.
         Reference: Chandra & Sikdar (2000).
 
     Fleet-weighted FLEET_PCU = 1.025:
