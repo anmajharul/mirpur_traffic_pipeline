@@ -16,6 +16,7 @@ requests==2.31.0
 # Numerical / tabular processing
 numpy==1.26.4
 pandas==2.2.2
+holidays==0.45
 
 # Scheduler (not used in Cloud Run one-shot mode, but imported by pipeline.py)
 schedule==1.2.1

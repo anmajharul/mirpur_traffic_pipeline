@@ -16,6 +16,7 @@ requests==2.31.0
 # Numerical / tabular processing
 numpy==1.26.4
 pandas==2.2.2
+holidays==0.45
 
 # Machine Learning
 xgboost==2.0.3
