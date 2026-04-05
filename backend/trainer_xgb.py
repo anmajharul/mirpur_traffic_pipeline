@@ -674,7 +674,10 @@ def forecast_24h(model: xgb.XGBRegressor, df: pd.DataFrame) -> list:
         row["hour"] = float(target_hour)
         row["minute"] = float(forecast_time.minute)
         row["day_of_week_num"] = float(forecast_time.weekday())
-        row["is_weekend"] = float(int(forecast_time.weekday() >= 5))
+        row["is_weekend"] = float(int(forecast_time.weekday() >= 4))
+        # Bangladesh weekend: Friday (4) + Saturday (5).
+        # Consistent with engineer_features() fix.
+        # Reference: Bangladesh Labor Act 2006, Section 103.
         row["hour_sin"] = float(np.sin(2 * np.pi * target_hour / 24))
         row["hour_cos"] = float(np.cos(2 * np.pi * target_hour / 24))
 
@@ -693,7 +696,12 @@ def forecast_24h(model: xgb.XGBRegressor, df: pd.DataFrame) -> list:
         # Suppress generic Pyright type instanciation on pandas
         input_row = pd.DataFrame([row]) # type: ignore
         input_row = input_row[available_features] # type: ignore
-        input_row = input_row.fillna(0)
+        # Imputation: use column medians from historical training data.
+        # CONSISTENCY FIX: training uses train-median imputation (walk_forward_cv).
+        # Using 0 here (inference) would create train-inference distribution mismatch.
+        # Fallback to 0 only for columns with no historical data at all.
+        train_medians = df[available_features].median()
+        input_row = input_row.fillna(train_medians).fillna(0.0)
 
         pred = float(model.predict(input_row)[0])
         pred = max(0.5, min(pred, 60.0))  # Physical clamp
