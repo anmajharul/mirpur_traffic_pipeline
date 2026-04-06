@@ -55,11 +55,23 @@ def default_weather():
         "weather_code": None,
         "pm2_5": None,
         "pm10": None,
-        "co_level": None,  # Not natively available in some tier
-        "no2_level": None, # Not natively available in some tier
+        "co_level": None,  
+        "no2_level": None, 
         "aqi": None,
         "timestamp_utc": datetime.now(timezone.utc).isoformat()
     }
+
+# -------------------------------------------------
+# IN-MEMORY CACHE TO PREVENT 429 RATE LIMITS
+# -------------------------------------------------
+# Cloud Run starts a single instance processing 4 corridors simultaneously.
+# Caching the weather data for 5 minutes limits API calls to 1 per 5 mins
+# (12 per hour), well within Tomorrow.io's Free Tier limit of 25 calls/hour.
+_weather_cache = {
+    "data": None,
+    "timestamp": 0.0
+}
+CACHE_TTL_SEC = 300  # 5 minutes
 
 # -------------------------------------------------
 # MAIN FUNCTION (Tomorrow.io API)
@@ -69,17 +81,45 @@ def fetch_weather(lat: float, lon: float, api_key: str) -> dict:
     Fetch real-time weather and AQI data via Tomorrow.io Timelines API.
     Provides Q1-defensible physical environmental data (precipitation intensity, 
     visibility, EPA AQI, PM2.5).
+    Uses caching to prevent Free Tier 429 Rate Limits.
     """
+    global _weather_cache
+
     if not api_key or lat is None or lon is None:
         logging.warning("[WEATHER] Invalid input — returning defaults")
         return default_weather()
 
-    # Requesting specific physical fields necessary for Rainfall Hysteresis and Visibility Penalty
-    fields = "temperature,precipitationIntensity,visibility,windSpeed,humidity,uvIndex,weatherCode,epaIndex,particulateMatter25,particulateMatter10"
+    # Return cached data if within TTL
+    current_time = time.time()
+    if _weather_cache["data"] is not None and (current_time - _weather_cache["timestamp"]) < CACHE_TTL_SEC:
+        logging.info("[WEATHER] Returning cached data to prevent 429 limits")
+        return _weather_cache["data"]
+
+    # EPA Air Quality is often walled into paid tiers on Tomorrow.io.
+    # To secure Q1 variables, we will fetch standard meteorological metrics from Tomorrow.io.
+    fields = "temperature,precipitationIntensity,visibility,windSpeed,humidity,uvIndex,weatherCode"
     url = (
         f"https://api.tomorrow.io/v4/timelines?"
         f"location={lat},{lon}&fields={fields}&timesteps=current&units=metric&apikey={api_key}"
     )
+
+    # -------------------------------------------------
+    # OPEN-METEO AIR QUALITY FALLBACK 
+    # For PM2.5 and AQI (100% Free, no API Key needed, Q1 acceptable)
+    # -------------------------------------------------
+    aqid_url = f"https://air-quality-api.open-meteo.com/v1/air-quality?latitude={lat}&longitude={lon}&current=pm10,pm2_5,us_aqi"
+    aqi_data = {}
+    try:
+        r_aqi = requests.get(aqid_url, timeout=5)
+        if r_aqi.status_code == 200:
+            aqi_val = r_aqi.json().get("current", {})
+            aqi_data = {
+                "pm2_5": aqi_val.get("pm2_5"),
+                "pm10": aqi_val.get("pm10"),
+                "aqi": aqi_val.get("us_aqi")
+            }
+    except Exception as e:
+        logging.warning(f"[WEATHER] Open-Meteo AQI fallback failed: {e}")
 
     for attempt in range(MAX_RETRIES + 1):
         try:
@@ -88,7 +128,9 @@ def fetch_weather(lat: float, lon: float, api_key: str) -> dict:
             latency = float(f"{(time.time() - start_time):.2f}")
 
             if response.status_code == 429:
-                logging.warning("[WEATHER] Rate limited — returning defaults")
+                logging.warning("[WEATHER] Rate limited (429) — returning defaults")
+                if _weather_cache["data"] is not None:
+                    return _weather_cache["data"] # Return stale cache if available
                 return default_weather()
 
             if response.status_code >= 500:
@@ -121,13 +163,15 @@ def fetch_weather(lat: float, lon: float, api_key: str) -> dict:
                 "visibility_km": float(vis) if vis is not None else None,
                 "humidity": current.get("humidity"),
                 "uv_index": current.get("uvIndex"),
-                "weather_condition": "Mapped by code",  # Add a generic string since tomorrow only provides code
+                "weather_condition": "Mapped by code",
                 "weather_code": current.get("weatherCode"),
-                "pm2_5": current.get("particulateMatter25"),
-                "pm10": current.get("particulateMatter10"),
-                "co_level": None,  # Excluded due to API limits, we will use PM2.5 for interaction
+                
+                # Use Open-Meteo data for precise PM2.5 / AQI
+                "pm2_5": aqi_data.get("pm2_5"),
+                "pm10": aqi_data.get("pm10"),
+                "co_level": None,  
                 "no2_level": None, 
-                "aqi": current.get("epaIndex"),
+                "aqi": aqi_data.get("aqi"),
 
                 "timestamp_utc": datetime.now(timezone.utc).isoformat(),
                 "api_latency_sec": latency,
@@ -148,6 +192,9 @@ def fetch_weather(lat: float, lon: float, api_key: str) -> dict:
             if result["visibility_km"] is not None and not (0 <= result["visibility_km"] <= 20):
                 result["visibility_km"] = None
 
+            # Update cache
+            _weather_cache["data"] = result
+            _weather_cache["timestamp"] = time.time()
             return result
 
         except requests.exceptions.Timeout:
@@ -160,7 +207,11 @@ def fetch_weather(lat: float, lon: float, api_key: str) -> dict:
 
         except Exception as e:
             logging.error(f"[WEATHER] Unexpected error: {e}")
+            if _weather_cache["data"] is not None:
+                return _weather_cache["data"]
             return default_weather()
 
     logging.error("[WEATHER] Failed after all retries — returning defaults")
+    if _weather_cache["data"] is not None:
+        return _weather_cache["data"]
     return default_weather()
