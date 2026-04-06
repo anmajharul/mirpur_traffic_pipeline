@@ -105,9 +105,9 @@ def fetch_weather(lat: float, lon: float, api_key: str) -> dict:
 
     # -------------------------------------------------
     # OPEN-METEO AIR QUALITY FALLBACK 
-    # For PM2.5 and AQI (100% Free, no API Key needed, Q1 acceptable)
+    # For PM2.5, AQI, CO, NO2 (100% Free, no API Key needed, Q1 acceptable)
     # -------------------------------------------------
-    aqid_url = f"https://air-quality-api.open-meteo.com/v1/air-quality?latitude={lat}&longitude={lon}&current=pm10,pm2_5,us_aqi"
+    aqid_url = f"https://air-quality-api.open-meteo.com/v1/air-quality?latitude={lat}&longitude={lon}&current=pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,us_aqi"
     aqi_data = {}
     try:
         r_aqi = requests.get(aqid_url, timeout=5)
@@ -116,6 +116,8 @@ def fetch_weather(lat: float, lon: float, api_key: str) -> dict:
             aqi_data = {
                 "pm2_5": aqi_val.get("pm2_5"),
                 "pm10": aqi_val.get("pm10"),
+                "co_level": aqi_val.get("carbon_monoxide"),
+                "no2_level": aqi_val.get("nitrogen_dioxide"),
                 "aqi": aqi_val.get("us_aqi")
             }
     except Exception as e:
@@ -166,11 +168,11 @@ def fetch_weather(lat: float, lon: float, api_key: str) -> dict:
                 "weather_condition": "Mapped by code",
                 "weather_code": current.get("weatherCode"),
                 
-                # Use Open-Meteo data for precise PM2.5 / AQI
+                # Use Open-Meteo data for precise PM2.5 / AQI / CO / NO2
                 "pm2_5": aqi_data.get("pm2_5"),
                 "pm10": aqi_data.get("pm10"),
-                "co_level": None,  
-                "no2_level": None, 
+                "co_level": aqi_data.get("co_level"),  
+                "no2_level": aqi_data.get("no2_level"), 
                 "aqi": aqi_data.get("aqi"),
 
                 "timestamp_utc": datetime.now(timezone.utc).isoformat(),

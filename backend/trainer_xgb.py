@@ -250,7 +250,7 @@ FEATURE_COLS = [
     # Genuinely external — NOT derived from the ETA target.
     # Reference: Kaufman et al. (2012) — leakage avoidance §3.
     "temperature", "rain_mm", "humidity", "wind_speed", "visibility_km",
-    "pm2_5", "pm10", "aqi",
+    "pm2_5", "pm10", "co_level", "no2_level", "aqi",
 
     # ── Novel Q1 Scientific Features (Derived) ──────────────────────────────
     # 1. Rainfall Hysteresis (Waterlogging Delay)
