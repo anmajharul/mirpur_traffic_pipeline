@@ -499,7 +499,7 @@ def collect(origin: str, dest: str, mapbox_token: str, direction_name: str) -> d
 
 
     # Weather (with EPA NowCast AQI — see weather.py)
-    weather = fetch_weather(23.8067, 90.3687, WEATHER_API_KEY) or {}
+    weather = fetch_weather(23.80714, 90.36861, WEATHER_API_KEY) or {}
 
     # -----------------------------------------------------------
     # HOLIDAY / WEEKEND DETECTION (BANGLADESH)
@@ -635,7 +635,7 @@ def collect(origin: str, dest: str, mapbox_token: str, direction_name: str) -> d
 
         # -----------------------------------------------------------
         # METEOROLOGICAL FEATURES
-        # Sourced from WeatherAPI (Dhaka lat 23.8067, lon 90.3687).
+        # Sourced from WeatherAPI (Mirpur-10 Circle lat 23.80714, lon 90.36861).
         # AQI is EPA NowCast (computed in weather.py) — not max(PM2.5, PM10).
         #
         # EPA NowCast AQI Reference:

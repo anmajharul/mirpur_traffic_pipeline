@@ -15,7 +15,7 @@ The codebase has been engineered to meet the stringent reproducible and theoreti
 This framework rectifies several common methodological flaws found in applied traffic forecasting literature:
 
 1. **Strict Sensor Independence (El Faouzi et al. 2011)** 
-   We explicitly avoid multi-routing-engine fusion (e.g., Mapbox + Waze) to prevent violating sensor independence assumptions required for Kalman or inverse-variance weighting algorithms. Instead, we compute divergence against an **OSRM static routing baseline**.
+   We explicitly avoid multi-routing-engine fusion (e.g., Mapbox + OSRM) to prevent violating sensor independence assumptions required for Kalman or inverse-variance weighting algorithms. Instead, we compute divergence against an **OSRM static routing baseline**.
 2. **Temporal Z-Score Anomaly Detection (Ahmed & Cook 1979)** 
    Spatially computed anomaly thresholds have been replaced with a rolling temporal baseline. An event is flagged as an anomaly only if current $v_t$ deviates by $> 2\sigma$ from recent history ($\left| v_t - \mu_{history} \right| / \sigma_{history} > 2.0$).
 3. **Dynamic PCU Scaling (Chandra & Sikdar 2000)** 
