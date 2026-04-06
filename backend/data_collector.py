@@ -82,7 +82,7 @@ from datetime import datetime, timezone, timedelta
 # Reference: Bachmann et al. (2013), TR Part C, 26, 12–26.
 
 import holidays
-from config import WEATHER_API_KEY, USE_GROUND_TRUTH, SUPABASE_URL, SUPABASE_KEY, WEEKEND_DAYS  # type: ignore
+from config import TOMORROW_API_KEY, USE_GROUND_TRUTH, SUPABASE_URL, SUPABASE_KEY, WEEKEND_DAYS  # type: ignore
 from weather import fetch_weather  # type: ignore
 from mrt import get_mrt_status  # type: ignore
 from freeflow import get_free_flow  # type: ignore
@@ -498,8 +498,8 @@ def collect(origin: str, dest: str, mapbox_token: str, direction_name: str) -> d
     severity, severity_idx = classify_severity(congestion)
 
 
-    # Weather (with EPA NowCast AQI — see weather.py)
-    weather = fetch_weather(23.80714, 90.36861, WEATHER_API_KEY) or {}
+    # Weather (Tomorrow.io)
+    weather = fetch_weather(23.80714, 90.36861, TOMORROW_API_KEY) or {}
 
     # -----------------------------------------------------------
     # HOLIDAY / WEEKEND DETECTION (BANGLADESH)
@@ -599,6 +599,57 @@ def collect(origin: str, dest: str, mapbox_token: str, direction_name: str) -> d
     #     on urban arterials. TR Part D, 106, 103258.
     #     https://doi.org/10.1016/j.trd.2022.103258
     # -----------------------------------------------------------
+    # -----------------------------------------------------------
+    # Q1 FEATURE 1: RAINFALL HYSTERESIS (Waterlogging Delay)
+    # References: Pregnolato, M. et al. (2017). TR Part D.
+    # -----------------------------------------------------------
+    rain_accumulation_3h = float(rain_mm) if rain_mm is not None else 0.0
+    try:
+        from data_loader import fetch_direction_data # type: ignore
+        import pandas as pd
+        hist_df = fetch_direction_data(direction_name, days_lookback=1)
+        if not hist_df.empty and "rain_mm" in hist_df.columns:
+            hist_df['created_at'] = pd.to_datetime(hist_df['created_at'])
+            three_hours_ago = now - timedelta(hours=3)
+            recent_rain = hist_df[hist_df['created_at'] >= three_hours_ago]['rain_mm'].sum()
+            rain_accumulation_3h += float(recent_rain)
+    except Exception as e:
+        logging.warning(f"[Q1 METRICS] Failed to calculate rain accumulation: {e}")
+
+    # -----------------------------------------------------------
+    # Q1 FEATURE 2: WMO RAIN CATEGORY
+    # References: WMO (2018). CIMO Vol.I §6.7.1
+    # -----------------------------------------------------------
+    wmo_rain_category = 0
+    if rain_mm is not None and rain_mm > 0:
+        if rain_mm < 2.5:
+            wmo_rain_category = 1
+        elif rain_mm <= 10.0:
+            wmo_rain_category = 2
+        else:
+            wmo_rain_category = 3
+            
+    # -----------------------------------------------------------
+    # Q1 FEATURE 3: VISIBILITY PENALTY FACTOR
+    # References: Highway Capacity Manual (HCM) 2022.
+    # -----------------------------------------------------------
+    vis_km = weather.get("visibility_km")
+    visibility_penalty = 0.0
+    if vis_km is not None:
+        if vis_km < 0.25:
+            visibility_penalty = 0.10  # 10% capacity drop
+        elif vis_km < 0.50:
+            visibility_penalty = 0.05  # 5% capacity drop
+            
+    # -----------------------------------------------------------
+    # Q1 FEATURE 4: EMISSION-CONGESTION FEEDBACK LOOP
+    # References: Zhang, K. & Batterman, S. (2013). Science of The Total Environment.
+    # -----------------------------------------------------------
+    pm2_5_val = weather.get("pm2_5")
+    emission_congestion_cross = None
+    if pm2_5_val is not None and congestion is not None:
+        emission_congestion_cross = round((congestion / 100.0) * pm2_5_val, 4)
+
     is_extreme_weather = int(rain_mm > 10.0) if rain_mm is not None else None  # 1 when >= Moderate-Heavy
 
     return {
@@ -609,7 +660,6 @@ def collect(origin: str, dest: str, mapbox_token: str, direction_name: str) -> d
         "corridor_id": direction_name,
 
         # [STORE_ONLY] speed features — NOT for use as model features
-        # Reference: Kaufman et al. (2012) — leakage formulation.
         "speed_kmh": fused_spd,
         "free_flow_kmh": ff,
         "speed_ratio": speed_ratio,           # [STORE_ONLY]
@@ -634,15 +684,7 @@ def collect(origin: str, dest: str, mapbox_token: str, direction_name: str) -> d
         "distance_km": dist,
 
         # -----------------------------------------------------------
-        # METEOROLOGICAL FEATURES
-        # Sourced from WeatherAPI (Mirpur-10 Circle lat 23.80714, lon 90.36861).
-        # AQI is EPA NowCast (computed in weather.py) — not max(PM2.5, PM10).
-        #
-        # EPA NowCast AQI Reference:
-        #   US EPA (2024). Technical Assistance Document for the Reporting
-        #   of Daily Air Quality — the Air Quality Index (AQI).
-        #   EPA-454/B-24-001.
-        #   https://www.airnow.gov/publications/air-quality-index/technical-assistance-document-for-reporting-the-daily-aqi/
+        # METEOROLOGICAL FEATURES (Tomorrow.io + Q1 derived features)
         # -----------------------------------------------------------
         "temperature": weather.get("temperature"),
         "rain_mm": weather.get("rain_mm"),
@@ -656,66 +698,36 @@ def collect(origin: str, dest: str, mapbox_token: str, direction_name: str) -> d
         "no2_level": weather.get("no2_level"),
 
         "weather_condition": weather_cond_str,
-        # Ordinal encoding of weather condition for ML feature use.
-        # 0=Clear, 1=Rain/Drizzle, 2=Storm/Thunder, 3=Fog/Mist/Haze
-        # Reference: Chen & Guestrin (2016).
         "weather_condition_encoded": weather_condition_encoded,
-        "weather_code": weather.get("weather_code"),  # raw WeatherAPI condition code
-        # is_extreme_weather = 1 when rain_mm > 10.0 (WMO Moderate-to-Heavy).
-        # Threshold chosen for class balance: ~8% positive rate in Dhaka.
-        # Reference: WMO (2018) CIMO Vol.I §6.7.1 — rainfall intensity classes.
+        "weather_code": weather.get("weather_code"),
         "is_extreme_weather": is_extreme_weather,
-
         "uv_index": weather.get("uv_index"),
-        "aqi": weather.get("aqi"),  # EPA NowCast AQI (not max(PM2.5,PM10))
+        "aqi": weather.get("aqi"),
+
+        # --- Q1 NOVEL FEATURES ---
+        "rain_accumulation_3h": rain_accumulation_3h,
+        "wmo_rain_category": wmo_rain_category,
+        "visibility_penalty": visibility_penalty,
+        "emission_congestion_cross": emission_congestion_cross,
+        # -------------------------
 
         "mrt_status": int(mrt_active),
         "mrt_headway": headway,
-        "is_holiday": is_holiday,  # 1 = Fri/Sat or gazetted public holiday
+        "is_holiday": is_holiday,
 
-        # -----------------------------------------------------------
-        # TEMPORAL FEATURES (ML-usable — genuinely exogenous)
-        # All derived from BDT observation timestamp.
-        # References:
-        #   RSTP (2015) — Dhaka peak hour definition
-        #   JICA (2015) BD-P18 §2.1 — monsoon seasonality
-        #   Hyndman & Athanasopoulos (2021) FPP3 Ch.7 — cyclical encoding
-        # -----------------------------------------------------------
-        "hour_of_day": hour,                          # integer 0–23
-        "is_peak_hour": int(is_peak),                 # 1 during morning/evening peak
-        "is_weekend": int(now.weekday() >= 4),        # 1 = Friday or Saturday (Bangladesh)
-        # FIX: Bangladesh weekend = Friday (4) + Saturday (5), NOT Sat+Sun.
-        # Reference: Bangladesh Labor Act 2006, Section 103.
-        # Consistent with engineer_features() and forecast_24h() fixes.
-        "is_monsoon": int(now.month in (6, 7, 8, 9)), # June–September (JICA 2015)
-        "month": now.month,                           # 1–12
-        # day_of_week as integer (0=Monday … 6=Sunday) for ordinal consistency
-        # in tree-based models. TEXT encoding removed.
-        # Reference: Chen & Guestrin (2016) — ordinal over one-hot for XGBoost.
-        "day_of_week": now.weekday(),                 # INTEGER 0–6
+        # TEMPORAL FEATURES
+        "hour_of_day": hour,
+        "is_peak_hour": int(is_peak),
+        "is_weekend": int(now.weekday() >= 4),
+        "is_monsoon": int(now.month in (6, 7, 8, 9)),
+        "month": now.month,
+        "day_of_week": now.weekday(),
         "time_slot": time_slot,
 
         "prediction_time": now.isoformat(),
-        # Five-minute horizon follows standard short-term arterial
-        # forecasting practice in the ITS literature.
-        "horizon_min": 5,  # Reference: Vlahogianni et al. (2014)
-
-        # Data availability: 1 = Mapbox only
-        # Reference: El Faouzi et al. (2011) — source independence §4.
-        "source_count": 1,
-
-        # PCU-weighted mixed-traffic density index.
-        # Mapbox-only proxy (documented limitation).
-        # References: JICA (2015) BD-P18; HCM 7e Table 11-11; Greenshields (1934).
+        "horizon_min": 5,
         "pcu_index": pcu_index,
-        "pcu_source": pcu_source,  # [STORE_ONLY] — not an ML feature
+        "pcu_source": pcu_source,
 
-        # rain_x_peak_hour: interaction feature (rain × peak indicator).
-        # Captures compound effect of precipitation and peak-hour congestion.
-        # Lagged rain features capture post-rain drainage hysteresis.
-        # Reference: Agarwal, M. et al. (2022). Weather-induced traffic disruption
-        #   on urban arterials: A systematic review. TR Part D, 106, 103258.
-        #   https://doi.org/10.1016/j.trd.2022.103258
-        #   [Basis: rainfall-congestion interaction in heterogeneous urban traffic]
         "rain_x_peak_hour": round(rain_mm * int(is_peak), 4) if rain_mm is not None else None,
     }

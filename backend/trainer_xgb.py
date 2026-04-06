@@ -252,6 +252,25 @@ FEATURE_COLS = [
     "temperature", "rain_mm", "humidity", "wind_speed", "visibility_km",
     "pm2_5", "pm10", "aqi",
 
+    # ── Novel Q1 Scientific Features (Derived) ──────────────────────────────
+    # 1. Rainfall Hysteresis (Waterlogging Delay)
+    # Reference: Pregnolato, M. et al. (2017). The impact of flooding on road transport.
+    # Transport Research Part D, 55, 67-81.
+    "rain_accumulation_3h",
+    
+    # 2. WMO Standard Rainfall Classification (Ordinal Categories)
+    # Reference: World Meteorological Organization (WMO). (2018). CIMO Vol.I §6.7.1
+    "wmo_rain_category",
+    
+    # 3. Visibility Capacity Penalty Factor
+    # Reference: Transportation Research Board. (2022). Highway Capacity Manual (HCM). Chapter 11.
+    "visibility_penalty",
+
+    # 4. Emission-Congestion Feedback Loop Interaction
+    # Reference: Zhang, K. & Batterman, S. (2013). Air pollution and health risks due to vehicle traffic.
+    # Science of The Total Environment, 450-451, 307-316.
+    "emission_congestion_cross",
+
     # Weather condition ordinal (0=Clear, 1=Rain, 2=Storm, 3=Fog).
     # Reference: Chen & Guestrin (2016) — ordinal encoding for XGBoost.
     "weather_condition_encoded",

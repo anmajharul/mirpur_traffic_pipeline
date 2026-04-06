@@ -58,7 +58,7 @@ WEEKEND_DAYS = {4, 5}  # Friday, Saturday
 SUPABASE_URL = get_env_variable("SUPABASE_URL")
 SUPABASE_KEY = get_env_variable("SUPABASE_KEY")
 MAPBOX_TOKEN = get_env_variable("MAPBOX_TOKEN", required=False)
-WEATHER_API_KEY = get_env_variable("WEATHER_API_KEY", required=False)
+TOMORROW_API_KEY = get_env_variable("TOMORROW_API_KEY", required=False)
 
 
 # -------------------------------------------------
@@ -129,8 +129,8 @@ def validate_config():
         raise ValueError("SUPABASE_KEY looks invalid")
     if MAPBOX_TOKEN and len(MAPBOX_TOKEN) < 10:
         raise ValueError("MAPBOX_TOKEN looks suspicious")
-    if WEATHER_API_KEY and len(WEATHER_API_KEY) < 10:
-        raise ValueError("WEATHER_API_KEY looks suspicious")
+    if TOMORROW_API_KEY and len(TOMORROW_API_KEY) < 10:
+        raise ValueError("TOMORROW_API_KEY looks suspicious")
 
 
 # -------------------------------------------------
