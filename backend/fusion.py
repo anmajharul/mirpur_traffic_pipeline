@@ -83,7 +83,6 @@ REFERENCES:
     [Basis: Dhaka fleet composition Table 4.3; fleet-weighted PCU = 1.025]
 """
 
-import logging
 import numpy as np
 
 # ─────────────────────────────────────────────────────────────────────────────

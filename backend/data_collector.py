@@ -551,12 +551,14 @@ def collect(origin: str, dest: str, mapbox_token: str, direction_name: str) -> d
     # Reference: Ahmed & Cook (1979). TRR 722, 1-9.
     # detect_temporal_anomaly() imported from fusion.py.
     from fusion import detect_temporal_anomaly  # type: ignore
+    from data_loader import fetch_direction_data  # type: ignore
     try:
         history_df = fetch_direction_data(direction_name, days_lookback=3)
         history_speeds = []
         if not history_df.empty and "speed_kmh" in history_df.columns:
             history_speeds = history_df["speed_kmh"].dropna().tail(12).tolist()
-    except Exception:
+    except Exception as e:
+        logging.error(f"[ANOMALY] Error calculating history: {e}")
         history_speeds = []
 
     is_anomaly, z_score = detect_temporal_anomaly(

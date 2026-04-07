@@ -83,8 +83,6 @@ def fetch_weather(lat: float, lon: float, api_key: str) -> dict:
     visibility, EPA AQI, PM2.5).
     Uses caching to prevent Free Tier 429 Rate Limits.
     """
-    global _weather_cache
-
     if not api_key or lat is None or lon is None:
         logging.warning("[WEATHER] Invalid input — returning defaults")
         return default_weather()

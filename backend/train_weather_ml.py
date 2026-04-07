@@ -111,7 +111,7 @@ def train_weather_ml():
             "predicted_congestion_bump_pct": float(max(0, cong_pred - predicted_congs[0])),
             "confidence_score": float(len(df) / 10000.0),
             "sample_size": int(len(df)),
-            "trained_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
         }
         records_to_insert.append(row)
         
