@@ -30,7 +30,6 @@ def train_weather_ml():
     # Needs a large limit to capture meaningful historic patterns
     response = supabase.table("smart_eta_logs") \
         .select("speed_kmh, congestion_percent, rain_mm, aqi, data_confidence") \
-        .not_is("speed_kmh", "null") \
         .gte("data_confidence", 0.6) \
         .order("created_at", desc=True) \
         .limit(10000) \
