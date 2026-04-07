@@ -756,6 +756,26 @@ def main():
         raise SystemExit("[TRAINER] Training skipped: insufficient data")
     save_model_artifact(trained_model, MODEL_ARTIFACT_NAME)
 
+    # --- FIX: Generate 24-hour predictions and upload to Supabase ---
+    logging.info("[TRAINER] Generating 24-hour forecasts...")
+    recent_df = load_and_preprocess_data(days_lookback=3)
+    if not recent_df.empty:
+        forecasts = forecast_24h(trained_model, recent_df)
+        if forecasts:
+            try:
+                # Clear old forecasts to satisfy the frontend query: SELECT ... ORDER BY timestamp ASC LIMIT 24
+                # We use neq offset_h -1 which covers all valid offset_h (0..23)
+                supabase.table("smart_eta_forecasts").delete().neq("offset_h", -1).execute()
+                
+                # Insert new 24h predictions
+                supabase.table("smart_eta_forecasts").insert(forecasts).execute()
+                logging.info(f"[TRAINER] Successfully inserted {len(forecasts)} predictions into DB.")
+            except Exception as e:
+                logging.error(f"[TRAINER] Failed to insert forecasts: {e}")
+        else:
+            logging.warning("[TRAINER] No forecasts generated.")
+    else:
+        logging.warning("[TRAINER] No recent data available for forecasting lag generation.")
 
 if __name__ == "__main__":
     main()

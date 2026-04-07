@@ -7,8 +7,9 @@ from datetime import datetime, timezone, timedelta
 from functools import lru_cache
 from pathlib import Path
 from threading import Lock
-from typing import Any
+from typing import Any, Dict
 
+from pydantic import BaseModel
 from fastapi import FastAPI, Header, HTTPException
 from supabase import create_client
 
@@ -231,3 +232,43 @@ def admin_reload_model(x_reload_secret: str | None = Header(default=None)):
     result = _download_and_hot_load()
     log_event("model_reload_done", **result)
     return {"status": "ok", **result}
+
+class PredictionRequest(BaseModel):
+    features: Dict[str, float]
+
+@app.post("/predict")
+def predict_eta(req: PredictionRequest):
+    """
+    Real-time single-shot prediction endpoint.
+    Expects a dictionary of engineered features matching the XGBoost training schema.
+    """
+    with model_lock:
+        booster = _active_model
+        src = _model_source
+
+    if not booster:
+        log_event("prediction_failed", reason="model_not_loaded")
+        raise HTTPException(status_code=503, detail="Model artifact is not loaded.")
+    
+    try:
+        import pandas as pd
+        # Construct DataFrame from single row dict
+        df = pd.DataFrame([req.features])
+        
+        # Because we loaded using xgb.Booster(), we must pass a DMatrix
+        dmatrix = xgb.DMatrix(df)
+        pred = booster.predict(dmatrix)[0]
+        
+        # Physical plausibility clamp (matching trainer logic)
+        pred_clamped = max(0.5, min(float(pred), 60.0))
+        
+        log_event("prediction_success", source=src, predicted_eta=pred_clamped)
+        
+        return {
+            "status": "success",
+            "predicted_eta_min": pred_clamped,
+            "source": src
+        }
+    except Exception as e:
+        log_event("prediction_error", error=str(e))
+        raise HTTPException(status_code=400, detail=f"Prediction failed: {e}")

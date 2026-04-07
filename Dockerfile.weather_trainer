@@ -1,0 +1,37 @@
+# ============================================================
+# Dockerfile.weather_trainer — Mirpur-10 Weather ML Trainer
+# Cloud Run Job: 512Mi RAM, 1 vCPU, timeout 240s
+# Region: us-central1 (free tier)
+# ============================================================
+
+FROM python:3.11-slim
+
+# Metadata
+LABEL maintainer="mirpur-traffic-ai"
+LABEL job="weather_trainer"
+
+# Prevents Python from buffering stdout/stderr (critical for Cloud Run logs)
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+
+WORKDIR /app
+
+# Build tools needed for scikit-learn
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy and install Python dependencies FIRST (layer caching)
+# Reusing trainer requirements since it has sklearn, numpy, pandas, supabase
+COPY requirements.trainer.txt .
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.trainer.txt
+
+# Copy only the backend source
+COPY backend/ ./backend/
+
+WORKDIR /app/backend
+
+# Executes the weather curve ML generation and uploads directly to DB
+ENTRYPOINT ["python", "train_weather_ml.py"]
