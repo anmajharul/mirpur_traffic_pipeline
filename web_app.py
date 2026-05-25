@@ -10,7 +10,7 @@ from threading import Lock
 from typing import Any, Dict
 
 from pydantic import BaseModel
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI, Header, HTTPException, BackgroundTasks
 from supabase import create_client
 
 try:
@@ -272,3 +272,19 @@ def predict_eta(req: PredictionRequest):
     except Exception as e:
         log_event("prediction_error", error=str(e))
         raise HTTPException(status_code=400, detail=f"Prediction failed: {e}")
+
+@app.get("/cron/collect")
+def cron_collect_data(background_tasks: BackgroundTasks):
+    """
+    Triggered by external cron services (e.g., cron-jobs.org) every 5 minutes
+    since Koyeb Free Tier does not support native Cron Jobs.
+    """
+    try:
+        from pipeline import run_collection_cycle
+        background_tasks.add_task(run_collection_cycle)
+        log_event("cron_collection_triggered_via_api")
+        return {"status": "collection_started"}
+    except Exception as e:
+        log_event("cron_collection_trigger_error", error=str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
