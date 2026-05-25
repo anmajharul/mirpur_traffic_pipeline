@@ -11,6 +11,6 @@ pandas==2.2.2
 holidays==0.45
 scikit-learn==1.4.2
 optuna==3.6.1
+xgboost==2.0.3
 --extra-index-url https://download.pytorch.org/whl/cpu
 torch==2.2.2+cpu
-xgboost==2.0.3
