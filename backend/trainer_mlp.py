@@ -315,7 +315,7 @@ def walk_forward_cv(df: pd.DataFrame, feature_cols: List[str], target_col: str, 
 
     rng = np.random.default_rng(seed=RANDOM_STATE)
     bootstrap_maes = [float(np.mean(rng.choice(all_abs_errors, size=len(all_abs_errors), replace=True))) for _ in range(1000)]
-    return {"mean_mae": np.mean(fold_maes), "std_mae": np.std(fold_maes), "mean_smape": np.mean(fold_smapes), "ci_95_lower": np.quantile(bootstrap_maes, 0.025), "ci_95_upper": np.quantile(bootstrap_maes, 0.975), "n_folds": N_FOLDS}
+    return {"mean_mae": np.mean(fold_maes), "std_mae": np.std(fold_maes), "mean_smape": np.mean(fold_smapes), "std_smape": np.std(fold_smapes), "ci_95_lower": np.quantile(bootstrap_maes, 0.025), "ci_95_upper": np.quantile(bootstrap_maes, 0.975), "n_folds": N_FOLDS}
 
 
 # ──────────────────────────────────────────────────────────────────────────────
