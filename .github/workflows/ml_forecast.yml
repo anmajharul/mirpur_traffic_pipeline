@@ -31,4 +31,6 @@ jobs:
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
           MAPBOX_TOKEN: ${{ secrets.MAPBOX_TOKEN }}
         run: |
-          python backend/generate_ml_forecast.py
+          cd backend
+          python download_models.py
+          python generate_ml_forecast.py

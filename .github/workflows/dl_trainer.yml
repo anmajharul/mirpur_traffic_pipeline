@@ -36,6 +36,16 @@ jobs:
           cd backend
           python trainer_mlp.py
 
+      - name: Upload MLP Model
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          MODEL_ARTIFACT_PATH: "model_mlp_weight.pt"
+          MODEL_REMOTE_LATEST_PATH: "latest/model_mlp_weight.pt"
+        run: |
+          cd backend
+          python upload_model.py
+
       - name: Run TCN-TFT Ablation
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
