@@ -39,4 +39,3 @@ jobs:
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "docs: Auto-update Weather ML Insights reports [skip ci]"
-          file_pattern: "backend/reports/*"

@@ -48,4 +48,3 @@ jobs:
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "docs: Auto-update Deep Learning training reports & XAI weights [skip ci]"
-          file_pattern: "backend/reports/* backend/tcn_tft_xai_weights.csv backend/best_tcn_tft_fold*.pth backend/model_mlp_weight.pt"
