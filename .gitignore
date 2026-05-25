@@ -1,36 +1,144 @@
-# Traffic data and backups
-backend/traffic_pipeline.log
+# =============================================================================
+# .gitignore — Mirpur-10 Traffic AI Research Repository
+# Q1-Level: Only reproducible, peer-reviewable code & schemas go to GitHub.
+# =============================================================================
 
-# Python and virtual environments
-venv/
-.venv/
-env/
-__pycache__/
-*.py[cod]
-*$py.class
-.ipynb_checkpoints/
 
-# Sensitive files — NEVER commit these
+# =============================================================================
+# 🔴 SECRETS — NEVER commit these (would expose Supabase, Mapbox, Tomorrow.io)
+# =============================================================================
 .env
 .env.local
+.env.*
 secrets.json
 gcp-sa-key.json
 *.json.key
+service-account*.json
 
-# Editor and system files
-.tmp/
+
+# =============================================================================
+# 🔴 ML MODEL BINARY ARTIFACTS
+# model_ml_weight.json is a ~750KB XGBoost binary blob.
+# It is stored in Supabase Storage and fetched at runtime by the collector.
+# Committing large binaries bloats git history permanently.
+# Reproducibility: re-train via `python trainer_xgb.py` with the same seed.
+# =============================================================================
+backend/model_ml_weight.json
+*.json.model
+*.ubj
+*.pkl
+*.joblib
+
+
+# =============================================================================
+# 🔴 RAW DATA DUMPS — Data lives in Supabase, not in the repo
+# logs.json / logs2.json are local snapshots for debugging only.
+# A Q1 repo points to the Supabase data source, not raw dumps.
+# =============================================================================
+logs.json
+logs2.json
+*.data.json
+data_dump*.json
+data_dump*.csv
+*.csv
+*.xlsx
+*.parquet
+
+# 🟢 ALLOW GENERATED REPORTS & XAI WEIGHTS (CI/CD OUTPUTS)
+!backend/reports/
+!backend/reports/*.csv
+!backend/*_weights.csv
+!backend/*_feature_importance.csv
+
+# 🔴 IGNORE DEEP LEARNING MODEL WEIGHTS
+*.pth
+*.pt
+
+
+# =============================================================================
+# 🟡 PYTHON RUNTIME ARTIFACTS
+# =============================================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+.ipynb_checkpoints/
+*.ipynb
+
+
+# =============================================================================
+# 🟡 VIRTUAL ENVIRONMENTS — Use requirements.txt to reproduce the env
+# =============================================================================
+venv/
+.venv/
+env/
+ENV/
+.conda/
+*.egg-info/
+dist/
+build/
+site/
+
+
+# =============================================================================
+# 🟡 IDE & EDITOR FILES — Not part of the research artifact
+# =============================================================================
 .vscode/
+.idea/
+*.code-workspace
+*.swp
+*.swo
+*~
+
+
+# =============================================================================
+# 🟡 OS-GENERATED JUNK
+# =============================================================================
 .DS_Store
 Thumbs.db
+desktop.ini
+ehthumbs.db
+
+
+# =============================================================================
+# 🟡 TOOL-SPECIFIC DIRECTORIES (local AI/IDE tooling)
+# =============================================================================
+.qodo/
+.sixth/
+.gemini/
+
+
+# =============================================================================
+# 🟡 FRONTEND BUILD ARTIFACTS (if frontend exists)
+# =============================================================================
 node_modules/
+.next/
+.nuxt/
 dist/
 build/
 .eslintcache
+*.tsbuildinfo
 
-# Tool-specific directories
-.qodo/
-.sixth/
 
-# Local notes (not for repo)
-frontend_q1_review.md
+# =============================================================================
+# 🟡 LOGS
+# =============================================================================
+*.log
+backend/traffic_pipeline.log
+logs/
+
+
+# =============================================================================
+# 🟢 LOCAL WORKING DOCUMENTS — Research notes, not peer-reviewed artifacts
+# These are session-specific working files. The final paper replaces them.
+# Keep in local workspace; push only the final cleaned README & SQL schemas.
+# =============================================================================
+mirpur_traffic_A2Z_fix_list.md
+Q1_hostile_reviewer_additional_findings.md
+mirpur_verified_references.md
+mirpur_traffic_complete_references.md
 implementation_plan.md
+frontend_q1_review.md

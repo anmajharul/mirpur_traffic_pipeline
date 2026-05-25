@@ -9,6 +9,10 @@
 -- Schema version: 1.0 (2026-04-07)
 --
 -- References:
+--   Pregnolato, M. et al. (2017). The impact of flooding on road transport.
+--     TR Part D, 55, 67-81. DOI: 10.1016/j.trd.2017.06.020
+--   Hoerl, A.E. & Kennard, R.W. (1970). Ridge Regression. 
+--     Technometrics, 12(1), 55-67. DOI: 10.1080/00401706.1970.10488634
 --   EEA (2023). EMEP/EEA Guidebook — wet scavenging, AQI reduction
 --   HCM 7th Ed. Ch.15 — rain speed penalty (10–17% range)
 --   scikit-learn Ridge Regression (sklearn.linear_model.Ridge, alpha=1.0)

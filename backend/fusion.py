@@ -33,6 +33,7 @@ REFERENCES:
     data by using Box-Jenkins techniques. Transportation Research Record,
     722, 1-9.
     No open DOI — cite as: Transportation Research Record 722 (1979), pp. 1-9.
+    (Alternative with DOI: Williams & Hoel (2003). https://doi.org/10.1061/(ASCE)0733-947X(2003)129:6(664))
     [Basis: 2σ z-score criterion for temporal anomaly detection in traffic
      time-series; the foundational paper for ARIMA-based traffic modeling]
 
@@ -57,6 +58,7 @@ REFERENCES:
 
 [5] Chandra, S. & Sikdar, P.K. (2000). Factors affecting PCU in mixed traffic
     situations on urban roads. Road & Transport Research, 9(3).
+    No open DOI. (Alternative with DOI: Chandra & Kumar (2003). https://doi.org/10.1061/(ASCE)0733-947X(2003)129:2(155))
     [Basis: PCU as a monotonically increasing function of congestion
      intensity in non-lane-based mixed traffic; replaces HCM §11.3.3
      which applies to lane-based flow only]
@@ -64,10 +66,11 @@ REFERENCES:
 [6] CSIR-CRRI (2017). Indian Highway Capacity Manual (Indo-HCM).
     Council of Scientific and Industrial Research — CRRI, New Delhi.
     https://www.crri.res.in
+    No open DOI. (Alternative with DOI: Arasan & Arkatkar (2010). https://doi.org/10.1061/(ASCE)TE.1943-5436.0000176)
     [Basis: non-lane-based heterogeneous traffic dynamics; PCU values
      for Dhaka's mixed-fleet composition under congested conditions]
 
-[7] FHWA (2012). Travel Time Reliability: Making It There On Time, All The Time.
+[7] FHWA (2006). Travel Time Reliability: Making It There On Time, All The Time.
     FHWA-HOP-06-070.
     https://ops.fhwa.dot.gov/publications/tt_reliability/
     [Basis: Congestion Intensity CI = TTI - 1; TTI definition, p.14]
@@ -95,6 +98,9 @@ import numpy as np
 #   ─────────────────────────────────
 #   Fleet-weighted mean PCU   = 1.025
 # Reference: JICA (2015), RSTP Table 4.3 + CSIR-CRRI (2017), Indo-HCM.
+# LIMITATION (NF1): Rickshaws comprise ~35% of Mirpur-10 non-motorized traffic
+# but are omitted from FLEET_PCU because Mapbox API telemetry strictly tracks
+# motorized probe vehicles. This must be noted in paper §3.2.
 # ─────────────────────────────────────────────────────────────────────────────
 FLEET_PCU = 0.45 * 0.5 + 0.30 * 1.0 + 0.15 * 1.5 + 0.10 * 2.5  # = 1.025
 
@@ -221,10 +227,10 @@ def compute_dynamic_pcu(
         pcu_source: 'dynamic_ci_scaled' or 'unavailable'
 
     References:
-        Chandra & Sikdar (2000). Road & Transport Research, 9(3).
+        Chandra & Sikdar (2000). Road & Transport Research, 9(3). (Alternative: Chandra & Kumar (2003) https://doi.org/10.1061/(ASCE)0733-947X(2003)129:2(155))
         CSIR-CRRI (2017). Indo-HCM. https://www.crri.res.in
         JICA (2015). RSTP Dhaka. https://openjicareport.jica.go.jp/pdf/12235575.pdf
-        FHWA (2012). TTI definition. https://ops.fhwa.dot.gov/publications/tt_reliability/
+        FHWA (2006). TTI definition. https://ops.fhwa.dot.gov/publications/tt_reliability/
     """
     if fused_spd is None or free_flow_kmh is None or free_flow_kmh <= 0:
         return None, "unavailable"
@@ -234,6 +240,10 @@ def compute_dynamic_pcu(
 
     # Bounded Greenshields density proxy
     # Reference: Greenshields (1934) — historical basis; bounded for non-lane flow
+    # LIMITATION (NF2): Pan et al. (2025) demonstrate that speed-flow curves in 
+    # oversaturated conditions form a U-shape, contradicting the monotonic 
+    # Greenshields assumption. We use Greenshields as a baseline proxy, but 
+    # this limitation should be acknowledged in the final paper.
     density_proxy = max(0.0, min(1.0, 1.0 - fused_spd / free_flow_kmh))
 
     # Congestion intensity CI = TTI - 1 (0 at free-flow, >0 under congestion)

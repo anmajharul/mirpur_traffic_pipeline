@@ -1,0 +1,43 @@
+name: XGBoost Daily Trainer
+
+on:
+  schedule:
+    # 19:00 UTC = 01:00 AM BDT (Daily)
+    - cron: '0 19 * * *'
+  workflow_dispatch:
+
+jobs:
+  train-xgboost:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.trainer.txt
+
+      - name: Run XGBoost Trainer
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: |
+          cd backend
+          python trainer_xgb.py
+          python upload_model.py
+
+      - name: Commit Reports to GitHub
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "docs: Auto-update XGBoost training reports & artifacts [skip ci]"
+          file_pattern: "backend/reports/* backend/model_ml_weight.json backend/shap_feature_importance.csv"

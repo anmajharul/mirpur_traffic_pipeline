@@ -8,10 +8,11 @@ Purpose:
 - Fallback: RSTP design speed for Dhaka arterials (40 km/h)
 - Cache: 7-day TTL (process-local; see limitation note below)
 
-LIMITATION:
+LIMITATION (M5):
     Cache is process-local (dict). In multi-process or serverless
-    deployment, free-flow is recomputed on each process restart.
-    Production deployment should use Redis or DB-backed TTL cache.
+    deployment (like Cloud Run), free-flow is recomputed on each process restart, 
+    breaking the TTL intent. Production deployment should use Redis or Supabase 
+    for distributed state caching.
 
 REFERENCES:
 [1] TRB (2022). Highway Capacity Manual, 7th Edition.

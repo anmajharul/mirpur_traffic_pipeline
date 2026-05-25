@@ -2,7 +2,7 @@
 weather.py — Q1 DEFENSIBLE WEATHER FETCHING MODULE
 ====================================================
 Purpose:
-- Real-time weather + AQI data from WeatherAPI
+- Real-time weather + AQI data from Tomorrow.io and Open-Meteo
 - Physical range validation (Dhaka-specific bounds)
 - Retry logic with exponential backoff
 - AQI computed via EPA NowCast breakpoint formula (NOT max(PM2.5, PM10))
@@ -24,6 +24,11 @@ REFERENCES:
 [4] US EPA (2024). Technical Assistance Document for the Reporting of
     Daily Air Quality — the Air Quality Index (AQI). EPA-454/B-24-001.
     https://www.airnow.gov/sites/default/files/2024-07/technical-assistance-document-for-the-reporting-of-daily-air-quality.pdf
+
+[5] Open-Meteo (2024). Open-Meteo Air Quality API.
+    https://open-meteo.com/en/docs/air-quality-api
+    [Basis: PM2.5, PM10, US AQI, CO, NO2 real-time data for Dhaka]
+    Data source: Copernicus Atmosphere Monitoring Service (CAMS).
 """
 
 import requests
@@ -163,7 +168,13 @@ def fetch_weather(lat: float, lon: float, api_key: str) -> dict:
                 "visibility_km": float(vis) if vis is not None else None,
                 "humidity": current.get("humidity"),
                 "uv_index": current.get("uvIndex"),
-                "weather_condition": "Mapped by code",
+                "weather_condition": {
+                    1000: "Clear", 1001: "Cloudy", 1100: "Mostly Clear",
+                    1101: "Partly Cloudy", 1102: "Mostly Cloudy",
+                    2000: "Fog", 2100: "Light Fog",
+                    4000: "Drizzle", 4001: "Rain", 4200: "Light Rain", 4201: "Heavy Rain",
+                    8000: "Thunderstorm"
+                }.get(int(current.get("weatherCode", 1000)), "Clear"),
                 "weather_code": current.get("weatherCode"),
                 
                 # Use Open-Meteo data for precise PM2.5 / AQI / CO / NO2

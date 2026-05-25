@@ -63,7 +63,54 @@ CREATE TABLE IF NOT EXISTS public.smart_eta_logs (
     -- Mixed-flow Traffic Quantification
     pcu_index double precision NULL,
     pcu_source text NULL,
-    
+
+    -- =========================================================================
+    -- FATAL-1 FIX: ML Feature columns previously missing from schema
+    -- data_collector.py collects all of these; Supabase was silently dropping
+    -- them. All are in FEATURE_COLS in trainer_xgb.py — NULL in DB = NULL in
+    -- training = model learns nothing from these features.
+    -- =========================================================================
+
+    -- ── OSRM routing divergence (spatial baseline feature) ──────────────────
+    -- osrm_divergence = (osrm_speed - mapbox_speed) / osrm_speed
+    -- Positive → current slower than historical (congestion signal)
+    -- Reference: Luxen & Vetter (2011). ACM SIGSPATIAL.
+    osrm_divergence double precision NULL,
+    osrm_eta_min double precision NULL,       -- OSRM baseline ETA for Paper Table 3
+
+    -- ── Weather condition encoding ───────────────────────────────────────────
+    -- Ordinal: 0=Clear, 1=Cloudy/Fog, 2=Rain, 3=Storm
+    weather_condition_encoded integer NULL,
+    weather_code integer NULL,                -- raw Tomorrow.io weatherCode integer
+
+    -- ── Binary temporal/operational flags ────────────────────────────────────
+    -- All stored as integer 0/1 for ML pipeline compatibility
+    -- Reference: schema_smart_eta_logs header note §Q1-2
+    is_holiday integer NULL DEFAULT 0,        -- 1 on BD public holidays & weekends
+    is_peak_hour integer NULL DEFAULT 0,      -- 1 during 07-10 or 16-20 BDT (RSTP)
+    is_weekend integer NULL DEFAULT 0,        -- 1 on Friday(4) or Saturday(5)
+    is_monsoon integer NULL DEFAULT 0,        -- 1 during June-September (WMO)
+    is_extreme_weather integer NULL DEFAULT 0, -- 1 when rain_mm > 10 (WMO Heavy)
+
+    -- ── Temporal integer features ─────────────────────────────────────────────
+    hour_of_day integer NULL,                 -- 0-23 BDT integer hour
+    month integer NULL,                       -- 1-12
+
+    -- ── Novel Q1 rain/weather derived features ────────────────────────────────
+    -- Reference: Agarwal et al. (2022) TR Part D, 106, 103258.
+    rain_accumulation_3h double precision NULL,   -- rolling 3h rainfall sum (mm)
+    rain_x_peak_hour double precision NULL,       -- rain_mm × is_peak_hour interaction
+
+    -- Reference: Ivanović et al. (2022) Sustainability 14(9), 4985.
+    visibility_penalty double precision NULL,     -- 0-0.1 penalty factor
+
+    -- WMO rainfall intensity category (0=None,1=Light,2=Mod,3=Heavy,4=Violent)
+    -- Reference: WMO (2018) CIMO Vol.I §6.7.1
+    wmo_rain_category integer NULL DEFAULT 0,
+
+    -- Reference: Zhang & Batterman (2013) Science of Total Environment.
+    emission_congestion_cross double precision NULL,  -- |osrm_divergence| × PM2.5
+
     CONSTRAINT smart_eta_logs_pkey PRIMARY KEY (id)
 ) TABLESPACE pg_default;
 

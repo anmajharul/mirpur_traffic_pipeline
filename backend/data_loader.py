@@ -103,7 +103,9 @@ def clean_dataframe(df: pd.DataFrame) -> pd.DataFrame:
 
     # Physical speed bounds: 5–80 km/h (RSTP urban arterial; JICA 2015 + HCM 7e)
     # Lower bound 5 km/h = minimum moving vehicle speed (HCM 2022, Ch. 15).
-    # Upper bound 80 km/h = RSTP design speed ceiling for Dhaka arterials.
+    # NOTE (M9): Dhaka's severe congestion frequently drops average speeds below 
+    # 6.4 km/h (walking speed). Using 5 km/h preserves valid severe-congestion 
+    # data points that would otherwise be discarded as anomalies.
     # Values outside this range indicate sensor malfunction, not real traffic.
     if "speed_kmh" in df.columns:
         df = df[(df["speed_kmh"] >= 5) & (df["speed_kmh"] <= 80)]
@@ -128,17 +130,29 @@ def fetch_direction_data(direction: str, days_lookback: int = 14) -> pd.DataFram
     cutoff_date = (datetime.utcnow() - timedelta(days=days_lookback)).isoformat()
 
     try:
-        response = (
+        query = (
             supabase
             .table("smart_eta_logs")
             .select("*")
             .eq("direction", direction)
             .gte("created_at", cutoff_date)
             .order("created_at", desc=False)
-            .execute()
         )
+        
+        all_data = []
+        offset = 0
+        limit = 1000
+        while True:
+            response = query.range(offset, offset + limit - 1).execute()
+            data = response.data
+            if not data:
+                break
+            all_data.extend(data)
+            if len(data) < limit:
+                break
+            offset += limit
 
-        data = response.data
+        data = all_data
         if not data:
             return pd.DataFrame()
 
@@ -159,7 +173,8 @@ def fetch_direction_data(direction: str, days_lookback: int = 14) -> pd.DataFram
 # -------------------------------------------------
 def load_and_preprocess_data(
     days_lookback: int = 30,
-    cutoff_time_utc: Optional[datetime] = None
+    cutoff_time_utc: Optional[datetime] = None,
+    since_date: Optional[str] = None   # ISO-8601 string — overrides days_lookback if provided
 ) -> pd.DataFrame:
     """
     Load full dataset for ML training with all leakage columns removed.
@@ -175,7 +190,12 @@ def load_and_preprocess_data(
         DataFrame safe for ML feature engineering and training.
         Empty DataFrame on any failure.
     """
-    cutoff_date = (datetime.utcnow() - timedelta(days=days_lookback)).isoformat()
+    # Incremental mode: use since_date if provided, else fall back to days_lookback
+    # Reference: Losing et al. (2018). Incremental on-line learning. Neurocomputing 275. DOI: 10.1016/j.neucom.2017.06.084
+    if since_date is not None:
+        cutoff_date = since_date
+    else:
+        cutoff_date = (datetime.utcnow() - timedelta(days=days_lookback)).isoformat()
     effective_cutoff_utc = cutoff_time_utc.astimezone(timezone.utc) if cutoff_time_utc else datetime.now(timezone.utc)
 
     try:
@@ -188,9 +208,20 @@ def load_and_preprocess_data(
         if cutoff_time_utc is not None:
             query = query.lt("created_at", effective_cutoff_utc.isoformat())
 
-        response = query.execute()
+        all_data = []
+        offset = 0
+        limit = 1000
+        while True:
+            response = query.range(offset, offset + limit - 1).execute()
+            data = response.data
+            if not data:
+                break
+            all_data.extend(data)
+            if len(data) < limit:
+                break
+            offset += limit
 
-        data = response.data
+        data = all_data
         if not data:
             logging.warning("[DATA LOADER] No data returned from DB")
             return pd.DataFrame()

@@ -38,6 +38,8 @@ REFERENCES:
     https://doi.org/10.1016/j.trc.2012.09.003
 """
 
+import time
+import os
 import logging
 from datetime import datetime, timezone, timedelta
 
@@ -142,9 +144,20 @@ def run_collection_cycle():
 
 # ======================================================
 # COLLECTION EXECUTION
-# Executes data collection once and cleanly exits for Cloud Run Jobs.
+# Executes data collection once and cleanly exits for Cloud Run Jobs,
+# or runs continuously for Koyeb Worker Services if KOYEB_WORKER=true.
 # Reference: 5-minute cycle standard for urban traffic monitoring
 # and short-term arterial forecasting (Vlahogianni et al. 2014, Section 4).
 # ======================================================
 if __name__ == "__main__":
-    run_collection_cycle()
+    if os.environ.get("KOYEB_WORKER", "false").lower() == "true":
+        logging.info("[PIPELINE] Starting continuous Koyeb Worker loop (5-minute interval)")
+        while True:
+            try:
+                run_collection_cycle()
+            except Exception as e:
+                logging.error(f"[PIPELINE] Unhandled exception in cycle: {e}")
+            logging.info("[PIPELINE] Sleeping for 300 seconds...")
+            time.sleep(300)
+    else:
+        run_collection_cycle()

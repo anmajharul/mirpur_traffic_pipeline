@@ -21,3 +21,5 @@ holidays==0.45
 # Machine Learning
 xgboost==2.0.3
 scikit-learn==1.4.2
+optuna==3.6.1
+shap==0.45.0

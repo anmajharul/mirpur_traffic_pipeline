@@ -40,7 +40,8 @@ REQUIRED_COLUMNS = [
     "direction",
     "distance_km",
     "actual_eta_min",
-    "speed_kmh"
+    "speed_kmh"  # Note (MI2): Used strictly for physical cleaning (5-80 km/h) here.
+                 # Stripped before ML training in data_loader.py to prevent leakage.
 ]
 
 MAX_SPEED_KMH = 80  # RSTP upper bound for Dhaka urban arterials
@@ -122,7 +123,9 @@ def _validate_ranges(df: pd.DataFrame, report: dict) -> pd.DataFrame:
 def _handle_missing(df: pd.DataFrame, report: dict) -> pd.DataFrame:
     df = df.copy()
     missing_before = int(df.isna().sum().sum())
-    df = df.dropna()
+    # FIX (M4): Drop only if required columns are missing. Do not drop rows missing 
+    # optional weather features (e.g. pm2_5, rain_mm) to avoid losing valid traffic data.
+    df = df.dropna(subset=[c for c in REQUIRED_COLUMNS if c in df.columns])
     missing_after = int(df.isna().sum().sum())
     report["missing_removed"] = missing_before - missing_after
     return df

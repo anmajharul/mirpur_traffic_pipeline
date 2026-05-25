@@ -1,0 +1,15 @@
+# ============================================================
+# requirements.dl.txt
+# Mirpur-10 Deep Learning (MLP, TCN-TFT) Trainer
+# ============================================================
+
+supabase==2.28.3
+python-dotenv==1.0.1
+requests==2.31.0
+numpy==1.26.4
+pandas==2.2.2
+holidays==0.45
+scikit-learn==1.4.2
+optuna==3.6.1
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.2.2+cpu

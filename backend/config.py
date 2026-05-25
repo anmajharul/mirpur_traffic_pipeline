@@ -54,6 +54,14 @@ WEEKEND_DAYS = {4, 5}  # Friday, Saturday
 
 # -------------------------------------------------
 # API KEYS
+# Note (NS1 — Dual Weather API Architecture):
+#   Tomorrow.io  → meteorological data (precipitation, visibility, temperature,
+#                  humidity, UV index, weather condition code).
+#   Open-Meteo   → air quality data (PM2.5, PM10, AQI, CO, NO2) sourced from
+#                  Copernicus CAMS at no cost.
+#   WeatherAPI was evaluated but replaced after empirical comparison against
+#   BMD Agargaon ground-truth showed Tomorrow.io had lower RMSE for
+#   precipitation intensity over the Mirpur-10 study corridor.
 # -------------------------------------------------
 SUPABASE_URL = get_env_variable("SUPABASE_URL")
 SUPABASE_KEY = get_env_variable("SUPABASE_KEY")

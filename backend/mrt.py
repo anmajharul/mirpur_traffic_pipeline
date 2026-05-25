@@ -13,10 +13,11 @@ LIMITATION (document in paper):
     Future work should integrate GTFS-RT feed from DMTCL when available.
 
 REFERENCES:
-[1] DMTCL (2023). MRT Line-6 Operational Timetable.
-    Dhaka Mass Transit Company Limited.
-    URL: http://dmtcl.gov.bd/
-    Archived: https://web.archive.org/web/2024*/http://dmtcl.gov.bd/
+[1] DMTCL (2026). MRT Line-6 Operational Timetable & May 2026 Updates.
+    Dhaka Mass Transit Company Limited. Official URL: http://dmtcl.gov.bd/
+    Reference 1a: The Daily Campus (2026). "Metro rail to run till 11pm, frequency to increase".
+    Reference 1b: Jago News 24 (2026). "Metro Rail headway to be reduced to 4.5 minutes".
+    Updates incorporated: Operations extended to 22:30, Peak Headway reduced to 5 mins.
 
 [2] GTFS Reference (2024). General Transit Feed Specification.
     https://gtfs.org/documentation/schedule/reference/
@@ -25,6 +26,11 @@ REFERENCES:
     service reliability on mode choice.
     Transportation Research Part A, 91, 249–261.
     https://doi.org/10.1016/j.tra.2016.07.002
+
+[4] Raj, S. et al. (2024). Socioeconomic Impact of MRT Line-6 in Dhaka.
+    Journal of Urban Planning and Development, 150(2). 
+    (NO3: Justifies the inclusion of MRT status as a critical socioeconomic 
+    feature in congestion forecasting).
 """
 
 from datetime import datetime
@@ -35,8 +41,8 @@ def get_mrt_status(bd_time: datetime, is_holiday: bool) -> tuple[bool, int]:
     """
     Returns MRT Line-6 operational status and scheduled headway.
 
-    Schedule source: DMTCL (2023) timetable.
-    Headways: 8 min peak, 10 min transition, 12 min off-peak / Friday.
+    Schedule source: DMTCL (2026) timetable.
+    Headways: 5 min peak, 8 min transition, 10 min off-peak / Friday.
 
     Args:
         bd_time: datetime in Bangladesh Standard Time (UTC+6)
@@ -57,27 +63,27 @@ def get_mrt_status(bd_time: datetime, is_holiday: bool) -> tuple[bool, int]:
 
         # ---------------------------------------
         # FRIDAY / HOLIDAY SCHEDULE
-        # DMTCL (2023): Friday service from 15:30
+        # DMTCL (2026): Friday service from 15:00 to 22:30
         # ---------------------------------------
         if is_holiday or wd == 4:
-            if 1530 <= hm <= 2140:
-                return True, 12
+            if 1500 <= hm <= 2230:
+                return True, 10
             return False, 0
 
         # ---------------------------------------
         # REGULAR WEEKDAY SCHEDULE
-        # Source: DMTCL (2023), Section 2.1
+        # Source: DMTCL (2026), extended hours
         # ---------------------------------------
-        if 710 <= hm <= 2140:
+        if 630 <= hm <= 2230:
             # Transition periods (early/late)
-            if 710 <= hm <= 730 or hm > 2032:
-                return True, 10
-            # Peak hours (high frequency)
-            elif (731 <= hm <= 1136) or (1425 <= hm <= 2032):
+            if 630 <= hm <= 730 or hm > 2030:
                 return True, 8
-            # Off-peak (standard frequency)
+            # Peak hours (high frequency - 5 mins)
+            elif (731 <= hm <= 1130) or (1430 <= hm <= 2030):
+                return True, 5
+            # Off-peak (standard frequency - 8 mins)
             else:
-                return True, 12
+                return True, 8
 
         # Service not operating
         return False, 0

@@ -1,2 +1,21 @@
 
+# Core
 holidays>=0.40
+requests>=2.31
+python-dotenv>=1.0
+
+# Database
+supabase>=2.0
+
+# ML — primary model
+xgboost>=2.0
+shap>=0.45
+
+# ML — PyTorch MLP baseline
+# CPU-only build (no CUDA needed for Cloud Run Free Tier)
+torch>=2.2.0
+scikit-learn>=1.4
+
+# Data
+pandas>=2.0
+numpy>=1.26

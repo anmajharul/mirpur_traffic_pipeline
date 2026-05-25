@@ -27,6 +27,7 @@ REFERENCES:
 
 [2] Efron, B. & Tibshirani, R.J. (1993). An Introduction to the Bootstrap.
     Chapman & Hall/CRC. ISBN 0-412-04231-2.
+    DOI: https://doi.org/10.1007/978-1-4899-4541-9
     [Basis: 1000-resample bootstrap 95% CI on MAE and RMSE]
 
 [3] Bergmeir, C. & Benitez, J.M. (2012). On the use of cross-validation for
@@ -47,6 +48,11 @@ REFERENCES:
     and 61 forecasting methods. International Journal of Forecasting, 36(1).
     https://doi.org/10.1016/j.ijforecast.2019.04.014
     [Basis: benchmark comparison methodology — naive baselines required]
+
+[7] Makridakis, S. (1993). Accuracy measures: theoretical and practical concerns.
+    International Journal of Forecasting, 9(4), 527-529.
+    https://doi.org/10.1016/0169-2070(93)90079-3
+    [Basis: SMAPE metric for symmetric error distribution]
 """
 
 import numpy as np
@@ -54,6 +60,7 @@ import pandas as pd
 import requests
 import logging
 from typing import Dict, Tuple, Optional
+from sklearn.metrics import r2_score
 
 
 def _resolve_time_col(df: pd.DataFrame) -> str:
@@ -93,6 +100,19 @@ def mape(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     """
     y_true = np.where(y_true == 0, 1e-6, y_true)
     return float(np.mean(np.abs((y_true - y_pred) / y_true)) * 100)
+
+
+def smape(y_true: np.ndarray, y_pred: np.ndarray) -> float:
+    """
+    Symmetric MAPE (sMAPE).
+    Addresses MAPE's asymmetry by using the mean of true and predicted
+    values in the denominator.
+    Reference: Makridakis, S. (1993). Accuracy measures: theoretical and practical concerns.
+    International Journal of Forecasting, 9(4), 527-529. DOI: 10.1016/0169-2070(93)90079-3
+    """
+    denominator = (np.abs(y_true) + np.abs(y_pred)) / 2.0
+    denominator = np.where(denominator == 0, 1e-6, denominator)
+    return float(np.mean(np.abs(y_true - y_pred) / denominator) * 100)
 
 
 # =========================================
@@ -154,6 +174,8 @@ def get_osrm_eta(origin: str, dest: str, timeout: int = 10) -> Optional[float]:
     - Uses public demo API (rate-limited, not guaranteed uptime)
     - Production benchmark should use self-hosted OSRM instance
     - OSRM routes may differ from Mapbox routes (road graph differences)
+    - Staleness (MI5): OSRM routing uses static OSM data which may not reflect 
+      recent road network changes or long-term construction.
 
     Args:
         origin: 'lat,lon' string
@@ -311,14 +333,62 @@ def evaluate_model(
     # 1. Temporal split
     train_df, test_df = temporal_train_test_split(df)
 
-    X_train = train_df[feature_cols]
+    X_train = train_df[feature_cols].copy()
     y_train = train_df[target_col].values
 
-    X_test = test_df[feature_cols]
+    X_test = test_df[feature_cols].copy()
     y_test = test_df[target_col].values
 
-    # 2. Train
-    model.fit(X_train, y_train)
+    # 2. Q1 METHODOLOGY: Imputation Strategy
+    # Forward Fill (LOCF) for continuous exogenous features to preserve temporal dynamics.
+    # Reference: Moritz, S., & Bartz-Beielstein, T. (2017). imputeTS: Time Series Missing Value 
+    # Imputation in R. The R Journal, 9(1), 207-218. DOI: 10.32614/RJ-2017-009
+    # Median fallback for Gap-Aware Lags to prevent stale data leakage.
+    # Reference: Vlahogianni, E. I. et al. (2014). Short-term traffic forecasting: Where we are and 
+    # where we're going. Transportation Research Part C, 43, 3-19. DOI: 10.1016/j.trc.2014.01.005
+    ffill_cols = ["temperature", "humidity", "wind_speed", "visibility_km", "pm2_5", "pm10", "co_level", "no2_level", "aqi"]
+    ffill_cols = [c for c in ffill_cols if c in X_train.columns]
+    if ffill_cols:
+        X_train[ffill_cols] = X_train[ffill_cols].ffill()
+        last_train_row = X_train[ffill_cols].iloc[-1:]
+        X_test_ffill = pd.concat([last_train_row, X_test[ffill_cols]]).ffill().iloc[1:]
+        X_test[ffill_cols] = X_test_ffill
+
+    train_medians = X_train.median()
+    X_train = X_train.fillna(train_medians)
+    X_test  = X_test.fillna(train_medians)
+
+    # 3. Train (Q1 METHODOLOGY FIX: Optimization Leakage Guard)
+    # We split the last 20% of the training fold sequentially to act
+    # as a pure validation set for early stopping to avoid test set distribution mismatch.
+    # Reference: Cawley, G. C., & Talbot, N. L. C. (2010). On Over-fitting in Model Selection 
+    # and Subsequent Selection Bias in Performance Evaluation. JMLR, 11, 2079-2107.
+    # URL: http://jmlr.org/papers/v11/cawley10a.html
+    val_size = int(len(X_train) * 0.2)
+    if val_size >= 10:
+        X_train_sub = X_train.iloc[:-val_size].copy()
+        y_train_sub = y_train[:-val_size]
+        X_val_sub   = X_train.iloc[-val_size:].copy()
+        y_val_sub   = y_train[-val_size:]
+        
+        # Determine model type for proper early-stopping arguments
+        model_type_name = type(model).__name__
+        if model_type_name == "XGBRegressor":
+            # For modern xgboost, early_stopping_rounds should be passed to the constructor.
+            if hasattr(model, 'set_params'):
+                model.set_params(early_stopping_rounds=20)
+            
+            model.fit(
+                X_train_sub, y_train_sub,
+                eval_set=[(X_val_sub, y_val_sub)],
+                verbose=False
+            )
+        elif model_type_name == "MLPWrapper":
+            model.fit(X_train_sub, y_train_sub, X_val=X_val_sub, y_val=y_val_sub)
+        else:
+            model.fit(X_train, y_train)
+    else:
+        model.fit(X_train, y_train)
 
     # 3. Predict
     y_pred = model.predict(X_test)
@@ -332,6 +402,8 @@ def evaluate_model(
     report["model_mae"]  = mae(y_test, y_pred)
     report["model_rmse"] = rmse(y_test, y_pred)
     report["model_mape"] = mape(y_test, y_pred)
+    report["model_smape"] = smape(y_test, y_pred)
+    report["model_r2"]   = float(r2_score(y_test, y_pred))
 
     # 6. Bootstrap 95% CI (Efron & Tibshirani 1993)
     # 1000 resamples, seed=42 for reproducibility.
@@ -345,6 +417,7 @@ def evaluate_model(
     report["baseline_mae"]  = mae(y_test, baseline_pred)
     report["baseline_rmse"] = rmse(y_test, baseline_pred)
     report["baseline_mape"] = mape(y_test, baseline_pred)
+    report["baseline_smape"] = smape(y_test, baseline_pred)
 
     # 8. Improvement vs historical average
     report["improvement_mae_pct"] = round(
@@ -370,6 +443,7 @@ def evaluate_model(
             report["osrm_mae"]  = mae(y_test_osrm, osrm_pred)
             report["osrm_rmse"] = rmse(y_test_osrm, osrm_pred)
             report["osrm_mape"] = mape(y_test_osrm, osrm_pred)
+            report["osrm_smape"] = smape(y_test_osrm, osrm_pred)
             report["improvement_vs_osrm_mae_pct"] = round(
                 (report["osrm_mae"] - report["model_mae"]) / report["osrm_mae"] * 100, 2
             )
@@ -378,12 +452,13 @@ def evaluate_model(
             )
         logging.info(
             f"[EVAL] OSRM baseline → MAE={report['osrm_mae']:.3f}, "
-            f"RMSE={report['osrm_rmse']:.3f}, MAPE={report['osrm_mape']:.2f}%"
+            f"RMSE={report['osrm_rmse']:.3f}, MAPE={report['osrm_mape']:.2f}%, SMAPE={report['osrm_smape']:.2f}%"
         )
     else:
         report["osrm_mae"]  = None
         report["osrm_rmse"] = None
         report["osrm_mape"] = None
+        report["osrm_smape"] = None
         logging.warning(
             "[EVAL] osrm_eta_min column not found in test_df — "
             "run data_collector with OSRM enabled to populate this field"
@@ -414,15 +489,16 @@ def evaluate_model(
     # 13. Paper Table 3 summary (print-ready)
     logging.info(
         "\n[EVAL] ══ Paper Table 3 Summary ══\n"
-        f"  Method              │ MAE   │ RMSE  │ MAPE\n"
-        f"  ────────────────────┼───────┼───────┼──────\n"
-        f"  Hist. Avg (baseline)│ {report['baseline_mae']:.3f} │ {report['baseline_rmse']:.3f} │ {report['baseline_mape']:.1f}%\n"
+        f"  Method              │ MAE   │ RMSE  │ MAPE  │ SMAPE\n"
+        f"  ────────────────────┼───────┼───────┼───────┼──────\n"
+        f"  Hist. Avg (baseline)│ {report['baseline_mae']:.3f} │ {report['baseline_rmse']:.3f} │ {report['baseline_mape']:.1f}% │ {report['baseline_smape']:.1f}%\n"
         f"  OSRM (static)       │ {str(round(report['osrm_mae'],3)) if report['osrm_mae'] else 'N/A':>5} │ "
         f"{str(round(report['osrm_rmse'],3)) if report['osrm_rmse'] else 'N/A':>5} │ "
-        f"{str(round(report['osrm_mape'],1))+'%' if report['osrm_mape'] else 'N/A'}\n"
-        f"  XGBoost (ours)      │ {report['model_mae']:.3f} │ {report['model_rmse']:.3f} │ {report['model_mape']:.1f}%\n"
+        f"{str(round(report['osrm_mape'],1))+'%' if report['osrm_mape'] else 'N/A':>6} │ "
+        f"{str(round(report['osrm_smape'],1))+'%' if report.get('osrm_smape') else 'N/A'}\n"
+        f"  XGBoost (ours)      │ {report['model_mae']:.3f} │ {report['model_rmse']:.3f} │ {report['model_mape']:.1f}% │ {report['model_smape']:.1f}%\n"
         f"  Improvement vs OSRM │ {report.get('improvement_vs_osrm_mae_pct','N/A')}% │ "
-        f"{report.get('improvement_vs_osrm_rmse_pct','N/A')}% │ —"
+        f"{report.get('improvement_vs_osrm_rmse_pct','N/A')}% │ —     │ —"
     )
 
     return report
