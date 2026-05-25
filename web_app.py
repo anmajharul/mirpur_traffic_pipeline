@@ -280,7 +280,7 @@ def cron_collect_data(background_tasks: BackgroundTasks):
     since Koyeb Free Tier does not support native Cron Jobs.
     """
     try:
-        from pipeline import run_collection_cycle
+        from backend.pipeline import run_collection_cycle
         background_tasks.add_task(run_collection_cycle)
         log_event("cron_collection_triggered_via_api")
         return {"status": "collection_started"}
