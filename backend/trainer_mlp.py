@@ -521,6 +521,8 @@ def load_mlp_artifact(artifact_path: str | Path) -> MLPWrapper:
 
     n_features = bundle["n_features"]
     hidden_sizes = bundle.get("hidden_sizes", (256, 128, 64))
+    if isinstance(hidden_sizes, str):
+        hidden_sizes = tuple(map(int, hidden_sizes.split(",")))
     dropout_rate = bundle.get("dropout_rate", 0.2)
     wrapper = MLPWrapper()
     wrapper.model = TrafficMLP(n_features, hidden_sizes=hidden_sizes, dropout_rate=dropout_rate)  # type: ignore[misc]
