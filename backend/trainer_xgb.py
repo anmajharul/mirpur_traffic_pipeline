@@ -1060,7 +1060,8 @@ def main():
             save_model_artifact(trained_model, MODEL_ARTIFACT_NAME)
 
     if trained_model is None:
-        raise SystemExit("[TRAINER] Retraining and forecasting skipped: no model available.")
+        logging.warning("[TRAINER] Retraining and forecasting skipped: no model available.")
+        return
 
     # --- FIX: Generate 24-hour predictions and upload to Supabase ---
     logging.info("[TRAINER] Generating 24-hour forecasts...")

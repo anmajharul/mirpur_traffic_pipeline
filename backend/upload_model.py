@@ -38,7 +38,8 @@ def upload_model_artifact() -> None:
     latest_path = os.environ.get("MODEL_REMOTE_LATEST_PATH") or DEFAULT_REMOTE_LATEST
 
     if not local_path.exists():
-        raise FileNotFoundError(f"Model artifact not found: {local_path}")
+        print(f"Model artifact not found: {local_path}. Skipping upload.")
+        return
 
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     archive_path = f"archives/model_ml_weight_{timestamp}.json"
