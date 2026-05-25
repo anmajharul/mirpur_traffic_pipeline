@@ -326,7 +326,7 @@ def train_mlp(training_cutoff_utc: Optional[datetime] = None, days_lookback: int
     # Reference: Losing et al. (2018). Incremental on-line learning.
     #   Neurocomputing 275, 1261–1274. https://doi.org/10.1016/j.neucom.2017.06.084
     from incremental_state import get_incremental_cutoff_date
-    since_date = get_incremental_cutoff_date("mlp_pytorch")
+    since_date = None # Force full retraining to generate missing artifact
 
     df = load_and_preprocess_data(days_lookback=days_lookback, cutoff_time_utc=training_cutoff_utc, since_date=since_date)
     # ── DATA SUFFICIENCY GUARD ──────────────────────────────────────────────
@@ -517,7 +517,7 @@ def load_mlp_artifact(artifact_path: str | Path) -> MLPWrapper:
     if not artifact_path.exists():
         raise RuntimeError(f"[MLP] PyTorch artifact not found at {artifact_path}")
 
-    bundle = torch.load(str(artifact_path), map_location="cpu")  # type: ignore[union-attr]
+    bundle = torch.load(str(artifact_path), map_location="cpu", weights_only=False)  # type: ignore[union-attr]
 
     n_features = bundle["n_features"]
     hidden_sizes = bundle.get("hidden_sizes", (256, 128, 64))
@@ -540,9 +540,9 @@ def main():
     Run: python backend/trainer_mlp.py
     """
     from incremental_state import check_new_data_available
-    if not check_new_data_available("mlp_pytorch"):
-        logging.info("[MLP] Skipping MLP training: No new data available since last cutoff.")
-        return
+    # if not check_new_data_available("mlp_pytorch"):
+    #     logging.info("[MLP] Skipping MLP training: No new data available since last cutoff.")
+    #     return
 
     model = train_mlp(
         training_cutoff_utc=datetime.now(timezone.utc),

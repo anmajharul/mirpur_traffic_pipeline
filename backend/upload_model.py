@@ -20,7 +20,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from supabase import create_client
+from dotenv import load_dotenv
 
+load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 
 DEFAULT_BUCKET = "ml-models"
 DEFAULT_LOCAL_ARTIFACT = "model_ml_weight.json"
