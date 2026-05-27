@@ -631,6 +631,13 @@ def walk_forward_cv_tcn_tft():
         all_ape_errors.extend((np.abs((y_true - y_pred_p50) / np.maximum(y_true, 1e-6)) * 100).flatten())
 
         global_vsn_weights.extend(fold_weights)
+        
+        if k == n_folds:
+            try:
+                save_tcn_artifact(model.state_dict(), scaler, len(feature_cols))
+                logging.info(f"Saved TCN artifact to {TCN_ARTIFACT_NAME}")
+            except Exception as e:
+                logging.warning(f"Could not save TCN artifact: {e}")
 
         logging.info(
             f"[TCN-TFT] Fold {k}/{n_folds}: "
@@ -799,6 +806,60 @@ def walk_forward_cv_tcn_tft():
         logging.warning(f"[TCN-TFT] Could not store metrics in Supabase: {e}")
 
     return mean_mae, ci_lo, ci_hi
+
+
+from pathlib import Path
+
+TCN_ARTIFACT_NAME = "model_tcn_weight.pt"
+
+class TCNWrapper:
+    def __init__(self, n_features, best_params=None):
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.n_features = n_features
+        self.best_params = best_params or {
+            "hidden_size": HIDDEN_SIZE,
+            "num_heads": NUM_HEADS,
+            "pred_len": PRED_LEN,
+            "num_quantiles": len(QUANTILES)
+        }
+        self.model = TCN_TFT_Hybrid(
+            num_features=n_features,
+            hidden_size=self.best_params["hidden_size"],
+            num_heads=self.best_params["num_heads"],
+            pred_len=self.best_params["pred_len"],
+            num_quantiles=self.best_params["num_quantiles"]
+        ).to(self.device)
+        self.scaler = StandardScaler()
+
+    def predict(self, X):
+        X_filled = X.fillna(X.median())
+        X_scaled = self.scaler.transform(X_filled.values.astype(np.float32))
+        X_seq = np.repeat(X_scaled[:, np.newaxis, :], SEQ_LEN, axis=1)
+        self.model.eval()
+        with torch.no_grad():
+            preds, _ = self.model(torch.tensor(X_seq, dtype=torch.float32).to(self.device))
+            eta_pred = preds[:, 0, 1].cpu().numpy()
+        return eta_pred
+
+def load_tcn_artifact(artifact_path):
+    artifact_path = Path(artifact_path)
+    if not artifact_path.exists():
+        raise RuntimeError(f"TCN artifact not found at {artifact_path}")
+    bundle = torch.load(str(artifact_path), map_location="cpu", weights_only=False)
+    wrapper = TCNWrapper(bundle["n_features"])
+    wrapper.model.load_state_dict(bundle["model_state_dict"])
+    wrapper.scaler.mean_ = bundle["scaler_mean"]
+    wrapper.scaler.scale_ = bundle["scaler_scale"]
+    return wrapper
+
+def save_tcn_artifact(model_state, scaler, n_features, output_path=TCN_ARTIFACT_NAME):
+    torch.save({
+        "model_state_dict": model_state,
+        "scaler_mean": scaler.mean_,
+        "scaler_scale": scaler.scale_,
+        "n_features": n_features
+    }, output_path)
+
 
 if __name__ == "__main__":
     walk_forward_cv_tcn_tft()

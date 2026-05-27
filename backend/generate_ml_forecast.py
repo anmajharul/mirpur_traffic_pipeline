@@ -36,6 +36,12 @@ except ImportError:
     logging.warning("Could not import MLP functions. MLP forecasts will be skipped.")
     load_mlp_artifact = None
 
+try:
+    from trainer_tcn_tft import load_tcn_artifact, TCN_ARTIFACT_NAME
+except ImportError:
+    logging.warning("Could not import TCN functions. TCN forecasts will be skipped.")
+    load_tcn_artifact = None
+
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
@@ -102,6 +108,18 @@ def generate_forecasts():
                 logging.error(f"Failed to load MLP model: {e}")
         else:
             logging.warning(f"MLP model not found at {mlp_path}")
+
+    tcn_model = None
+    if load_tcn_artifact is not None:
+        tcn_path = os.path.join(os.path.dirname(__file__), TCN_ARTIFACT_NAME)
+        if os.path.exists(tcn_path):
+            try:
+                tcn_model = load_tcn_artifact(tcn_path)
+                logging.info("Loaded TCN-TFT model.")
+            except Exception as e:
+                logging.error(f"Failed to load TCN model: {e}")
+        else:
+            logging.warning(f"TCN model not found at {tcn_path}")
 
     df_weather = fetch_weather_forecast()
     
@@ -210,6 +228,10 @@ def generate_forecasts():
         mlp_preds_eta = mlp_model.predict(X) if mlp_model is not None else None
         if mlp_preds_eta is not None:
             mlp_preds_eta = mlp_preds_eta.flatten()
+            
+        tcn_preds_eta = tcn_model.predict(X) if tcn_model is not None else None
+        if tcn_preds_eta is not None:
+            tcn_preds_eta = tcn_preds_eta.flatten()
         
         for i in range(num_hours):
             # XGBoost logic
@@ -233,6 +255,14 @@ def generate_forecasts():
                 m_cng = max(0.0, min(100.0, (1 - m_speed/40.0)*100))
                 record["mlp_predicted_speed_kmh"] = round(float(m_speed), 1)
                 record["mlp_predicted_congestion_percent"] = round(float(m_cng), 1)
+                
+            # TCN logic
+            if tcn_preds_eta is not None:
+                t_eta = max(1.0, tcn_preds_eta[i])
+                t_speed = max(3.0, min(80.0, (distance / (t_eta / 60.0))))
+                t_cng = max(0.0, min(100.0, (1 - t_speed/40.0)*100))
+                record["tcn_predicted_speed_kmh"] = round(float(t_speed), 1)
+                record["tcn_predicted_congestion_percent"] = round(float(t_cng), 1)
             
             records_to_insert.append(record)
 
