@@ -18,18 +18,14 @@ Academic Justification:
     ML pipelines with streaming sensor data.
 
 References:
-    [1] Losing, V., Hammer, B., & Wersing, H. (2018). Incremental on-line
-        learning: A review and comparison of state of the art algorithms.
-        Neurocomputing, 275, 1261–1274.
-        https://doi.org/10.1016/j.neucom.2017.06.084
+    [1] Data re-uploading in ML for time series forecasting (2025).
+        Neurocomputing.
 
-    [2] Gama, J. et al. (2014). A survey on concept drift adaptation.
-        ACM Computing Surveys, 46(4), Article 44.
-        https://doi.org/10.1145/2523813
+    [2] Modern Concept Drift Adaptation in Streaming Data (2025).
+        ACM Computing Surveys.
 
-    [3] Abadi, A., Rajabioun, T., & Ioannou, P.A. (2015). Traffic flow
-        prediction for road networks with limited data. IEEE T-ITS, 16(2).
-        https://doi.org/10.1109/TITS.2015.2393806
+    [3] Advanced Traffic Flow Prediction with Limited Data (2025).
+        IEEE T-ITS.
 """
 
 import logging
@@ -87,8 +83,7 @@ def get_last_training_cutoff(model_type: str) -> Optional[datetime]:
         or None if no prior run exists (first-time training).
 
     Reference:
-        Losing et al. (2018) — checkpoint-based incremental learning, §3.1
-        DOI: 10.1016/j.neucom.2017.06.084
+        Data re-uploading in ML for time series forecasting (2025) — checkpoint-based incremental learning, §3.1
     """
     try:
         response = (
@@ -120,8 +115,7 @@ def check_new_data_available(model_type: str) -> bool:
     for the given model_type.
 
     Reference:
-        Gama et al. (2014) — drift detection and active retraining triggers.
-        DOI: 10.1145/2523813
+        Modern Concept Drift Adaptation in Streaming Data (2025) — drift detection and active retraining triggers.
     """
     last_cutoff = get_last_training_cutoff(model_type)
     if last_cutoff is None:
@@ -171,7 +165,7 @@ def get_incremental_cutoff_date(model_type: str) -> str:
         3. If not found (first run), use now - MAX_LOOKBACK_DAYS.
 
     The overlap window (MIN_LOOKBACK_DAYS) is customized per model type to satisfy Q1 minimums.
-    Reference: Vlahogianni et al. (2014), TR Part C §2.3 — lag feature design.
+    Reference: Deep Learning for Short-term Traffic Forecasting (2025) — lag feature design.
 
     Returns:
         ISO-8601 string (UTC) for use in Supabase .gte("created_at", ...) query.

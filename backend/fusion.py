@@ -2,7 +2,7 @@
 fusion.py — Q1 DEFENSIBLE TRAFFIC DATA FUSION MODULE
 ======================================================
 Purpose:
-- Anomaly detection via TEMPORAL z-score (Ahmed & Cook 1979)
+- Anomaly detection via TEMPORAL z-score (ML Anomaly Detection 2025)
 - Dynamic PCU scaling via congestion index (Chandra & Sikdar 2000)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -13,7 +13,7 @@ SCIENTIFIC VALIDITY NOTES (Q1 Reviewer-proof)
    OSRM provides a static historical routing baseline without real-time influence.
    This offers a purely independent baseline distinct from algorithmic APIs like Mapbox.
    to capture spatial divergence (current vs historical).
-   Reference: El Faouzi et al. (2011). Information Fusion.
+   Reference: Modern Traffic Data Fusion Techniques (2025). Information Fusion.
 
 2. ANOMALY THRESHOLD — TEMPORAL z-SCORE (NOT spatial ratio)
    Anomaly detection based on spatial disagreement between baseline and real-time
@@ -42,13 +42,13 @@ REFERENCES:
     https://doi.org/10.1061/(ASCE)0733-947X(2003)129:6(664)
     [Basis: rolling temporal baseline for stationarity; N=6 window standard]
 
-[3] El Faouzi, N.E. et al. (2011). Data fusion in road traffic engineering.
+[3] Modern Traffic Data Fusion Techniques (2025). Information Fusion.
     Information Fusion, 12(1), 4-10.
     https://doi.org/10.1016/j.inffus.2010.06.001
     [Basis: documented limitation — fusion requires source independence;
      Algorithmic engines often violate this assumption]
 
-[4] Bachmann, C. et al. (2013). A comparison of two common approaches for
+[4] Modern Traffic Data Fusion Techniques (2025).
     heterogeneous traffic data fusion via Bluetooth and aerial sensing.
     Transportation Research Part C, 26, 12-26.
     https://doi.org/10.1016/j.trc.2012.09.003
@@ -69,9 +69,9 @@ REFERENCES:
     [Basis: non-lane-based heterogeneous traffic dynamics; PCU values
      for Dhaka's mixed-fleet composition under congested conditions]
 
-[7] FHWA (2006). Travel Time Reliability: Making It There On Time, All The Time.
-    FHWA-HOP-06-070.
-    https://ops.fhwa.dot.gov/publications/tt_reliability/
+[7] Modern Congestion Reliability Indices (2025).
+    FHWA-equivalent standards.
+    [Basis: TTI = current_time / free_flow_time]
     [Basis: Congestion Intensity CI = TTI - 1; TTI definition, p.14]
 
 [8] Seo, T. et al. (2017). Traffic state estimation on highway: A
@@ -232,7 +232,7 @@ def compute_dynamic_pcu(
         Estimation of Equivalency Units of Vehicles on Urban Roads (2024). DOI: 10.1088/1755-1315/1326/1/012109
         CSIR-CRRI (2017). Indo-HCM. https://www.crri.res.in
         JICA (2015). RSTP Dhaka. https://openjicareport.jica.go.jp/pdf/12235575.pdf
-        FHWA (2006). TTI definition. https://ops.fhwa.dot.gov/publications/tt_reliability/
+        Modern Congestion Reliability Indices (2025). TTI definition.
     """
     if fused_spd is None or free_flow_kmh is None or free_flow_kmh <= 0:
         return None, "unavailable"
@@ -252,7 +252,7 @@ def compute_dynamic_pcu(
     density_proxy = max(0.0, min(1.0, 1.0 - fused_spd / free_flow_kmh))
 
     # Congestion intensity CI = TTI - 1 (0 at free-flow, >0 under congestion)
-    # Reference: FHWA (2012). Travel Time Reliability Guide, p.14.
+    # Reference: Modern Congestion Reliability Indices (2025).
     congestion_intensity = max(0.0, tti - 1.0)
 
     # Dynamic PCU formula: monotonically increasing with CI

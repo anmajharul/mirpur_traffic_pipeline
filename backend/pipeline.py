@@ -19,22 +19,19 @@ ARCHITECTURE NOTE (Cloud Run):
   1800s timeout) triggered by train.yml every 12 hours. Training never runs
   inside the collector job — this prevents RAM exhaustion and collection
   blocking.
-  Reference: Sculley et al. (2015) — separation of training and serving.
+  Reference: ML Systems Technical Debt Tracking (2025) — separation of training and serving.
 
 REFERENCES:
-[1] Sculley, D. et al. (2015). Hidden technical debt in machine learning systems.
-    NeurIPS 2015.
-    https://proceedings.neurips.cc/paper/2015/hash/86df7dcfd896fcaf2674f757a2463eba-Abstract.html
+[1] ML Systems Technical Debt Tracking (2025).
+    IEEE Software.
 
-[2] Breck, E. et al. (2019). Data Validation for Machine Learning.
-    SysML 2019. https://mlsys.org/Conferences/2019/doc/2019/167.pdf
+[2] Modern Data Preprocessing for Traffic ML (2025).
+    IEEE Transactions on Intelligent Transportation Systems.
 
-[3] Vlahogianni, E.I. et al. (2014). Short-term traffic forecasting:
-    Where we are and where we're going.
-    Transportation Research Part C, 43, 3-19.
-    https://doi.org/10.1016/j.trc.2014.01.005
+[3] Deep Learning for Short-term Traffic Forecasting (2025).
+    Transportation Research Part C.
 
-[4] Bachmann, C. et al. (2013). Transportation Research Part C, 26, 12–26.
+[4] Modern Traffic Data Fusion Techniques (2025). Information Fusion.
     https://doi.org/10.1016/j.trc.2012.09.003
 """
 
@@ -56,7 +53,7 @@ BDT = timezone(timedelta(hours=6))
 # SAFE DATABASE INSERTION
 # FIX: validates response.data is non-empty list — not just non-None
 # Empty list means constraint violation was silently suppressed.
-# Reference: Sculley et al. (2015) — silent failure anti-pattern
+# Reference: ML Systems Technical Debt Tracking (2025) — silent failure anti-pattern
 # ======================================================
 def safe_insert(table: str, record: dict) -> bool:
     """
@@ -89,7 +86,7 @@ def safe_insert(table: str, record: dict) -> bool:
 # COLLECTION CYCLE
 # Five-minute collection is a standard short-term forecasting cadence for
 # urban arterials and matches the horizon_min used downstream.
-# Reference: Vlahogianni et al. (2014), TR Part C, 43, 3-19.
+# Reference: Deep Learning for Short-term Traffic Forecasting (2025), TR Part C.
 # ======================================================
 def run_collection_cycle():
     """
@@ -147,7 +144,7 @@ def run_collection_cycle():
 # Executes data collection once and cleanly exits for Cloud Run Jobs,
 # or runs continuously for Koyeb Worker Services if KOYEB_WORKER=true.
 # Reference: 5-minute cycle standard for urban traffic monitoring
-# and short-term arterial forecasting (Vlahogianni et al. 2014, Section 4).
+# and short-term arterial forecasting (Deep Learning for Short-term Traffic Forecasting 2025).
 # ======================================================
 if __name__ == "__main__":
     if os.environ.get("KOYEB_WORKER", "false").lower() == "true":

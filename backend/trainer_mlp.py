@@ -26,7 +26,7 @@ WHY NOT LSTM/TRANSFORMER:
     multivariate time series with missing values. Scientific Reports, 8.
     https://doi.org/10.1038/s41598-018-24271-9
 
-NORMALIZATION NOTE (Paper §3.4):
+NORMALIZATION NOTE (Paper 3.4):
     Unlike XGBoost, neural networks are sensitive to feature scale.
     StandardScaler (zero mean, unit variance) is applied to all inputs.
     Scaler is fit on TRAIN set only, then applied to TEST set —

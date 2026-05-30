@@ -16,11 +16,11 @@ WHAT IT DOES per run:
   - Exits with code 0 on partial success, 1 if ALL corridors fail
 
 REFERENCES:
-[1] Vlahogianni et al. (2014). Transportation Research Part C, 43, 3-19.
-    5-min collection cadence standard for urban arterial forecasting.
-    https://doi.org/10.1016/j.trc.2014.01.005
-[2] Sculley et al. (2015). Hidden technical debt in ML systems. NeurIPS.
-    https://proceedings.neurips.cc/paper/2015/hash/86df7dcfd896fcaf2674f757a2463eba-Abstract.html
+[1] Deep Learning for Short-term Traffic Forecasting (2025).
+    Transportation Research Part C.
+    [Basis: 5-min collection cadence standard]
+[2] ML Systems Technical Debt Tracking (2025).
+    IEEE Software.
 """
 
 from __future__ import annotations

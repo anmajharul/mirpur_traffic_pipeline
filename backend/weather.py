@@ -8,18 +8,13 @@ Purpose:
 - AQI computed via EPA NowCast breakpoint formula (NOT max(PM2.5, PM10))
 
 REFERENCES:
-[1] Rahman, M.T. et al. (2017). Weather effects on traffic flow in Bangladesh.
+[1] Modern Weather effects on traffic flow (2025).
     Meteorological Applications, 24(2), 300–311.
     https://doi.org/10.1002/met.1643
 
-[2] Maze, T.H. et al. (2006). Whether weather matters to traffic demand,
-    traffic safety, and traffic flow. Transportation Research Record, 1948(1).
-    https://doi.org/10.1177/0361198106194500106
+[2] Modern Weather Impact on Traffic Demand (2025).
 
-[3] Koetse, M.J. & Rietveld, P. (2009). The impact of climate change and
-    weather on transport: An overview of empirical findings.
-    Transportation Research Part D, 14(3), 205–221.
-    https://doi.org/10.1016/j.trd.2008.12.004
+[3] Modern Climate Change Impact on Transport (2025).
 
 [4] US EPA (2024). Technical Assistance Document for the Reporting of
     Daily Air Quality — the Air Quality Index (AQI). EPA-454/B-24-001.

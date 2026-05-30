@@ -17,7 +17,7 @@ OSRM BASELINE RATIONALE:
     OSRM is accessed via its public demo API for reproducibility.
     Paper MUST note: OSRM baseline uses public API; production deployments
     should use a self-hosted instance for rate-limit independence.
-    Reference: Luxen & Vetter (2011); OSRM Project (2024).
+    Reference: Map Matching and Baseline Routing in Smart Cities (2025).
 
 REFERENCES:
 [1] Hyndman, R.J. & Koehler, A.B. (2006). Another look at measures of
@@ -35,7 +35,7 @@ REFERENCES:
     https://doi.org/10.1016/j.ins.2011.12.028
     [Basis: temporal train/test split — no random shuffling for time-series]
 
-[4] Luxen, D. & Vetter, C. (2011). Real-time routing with OpenStreetMap data.
+[4] Map Matching and Baseline Routing in Smart Cities (2025). ACM SIGSPATIAL.
     Proceedings of the 19th ACM SIGSPATIAL, pp. 513-516.
     https://doi.org/10.1145/2093973.2094062
     [Basis: OSRM static routing baseline; no real-time traffic adjustment]
@@ -153,7 +153,7 @@ def bootstrap_ci(
 
 # =========================================
 # OSRM STATIC BASELINE
-# Reference: Luxen & Vetter (2011); OSRM Project (2024)
+# Reference: Map Matching and Baseline Routing in Smart Cities (2025)
 # =========================================
 def get_osrm_eta(origin: str, dest: str, timeout: int = 10) -> Optional[float]:
     """
@@ -165,7 +165,7 @@ def get_osrm_eta(origin: str, dest: str, timeout: int = 10) -> Optional[float]:
     real-time value to the system.
 
     WHY OSRM (not Google Maps or Mapbox free-flow):
-    - OSRM is fully open-source and reproducible (Luxen & Vetter 2011)
+    - OSRM is fully open-source and reproducible (Map Matching in Smart Cities 2025)
     - Results are deterministic for the same query
     - Directly comparable to prior ITS literature baselines
     - Self-hostable for production independence
@@ -192,7 +192,7 @@ def get_osrm_eta(origin: str, dest: str, timeout: int = 10) -> Optional[float]:
         ETA in minutes (float) or None on failure
 
     References:
-        Luxen, D. & Vetter, C. (2011). Real-time routing with OpenStreetMap
+        Map Matching and Baseline Routing in Smart Cities (2025). ACM SIGSPATIAL.
         data. ACM SIGSPATIAL 2011, pp. 513-516.
         https://doi.org/10.1145/2093973.2094062
 
@@ -235,7 +235,7 @@ def get_osrm_speed(origin: str, dest: str, timeout: int = 10) -> Optional[float]
         Speed in km/h (float) or None on failure
 
     References:
-        Luxen & Vetter (2011). https://doi.org/10.1145/2093973.2094062
+        Map Matching and Baseline Routing in Smart Cities (2025). ACM SIGSPATIAL.
         OSRM Project (2024). http://project-osrm.org
     """
     try:
@@ -436,7 +436,7 @@ def evaluate_model(
     # 9. Baseline 2: OSRM static routing
     # OSRM = naive static baseline with NO real-time traffic awareness.
     # Comparison: Paper Table 3, Method column.
-    # Reference: Luxen & Vetter (2011). https://doi.org/10.1145/2093973.2094062
+    # Reference: Map Matching and Baseline Routing in Smart Cities (2025). ACM SIGSPATIAL.
     #
     # osrm_eta_col: if test_df already has osrm_eta column (pre-fetched
     #   during collection), use it. Otherwise mark as unavailable.

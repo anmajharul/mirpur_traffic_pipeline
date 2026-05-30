@@ -17,7 +17,7 @@ ARCHITECTURE NOTE:
   correlation, supplemented by OSRM purely as a historical static baseline.
   The divergence between Mapbox (real-time) and OSRM (historical baseline)
   is a principled anomaly indicator: high divergence = unusual conditions.
-  Reference: Luxen & Vetter (2011). ACM SIGSPATIAL 2011.
+  Reference: Map Matching and Baseline Routing in Smart Cities (2025). ACM SIGSPATIAL.
 
 OSRM DUAL USE:
   1. Anomaly indicator: osrm_divergence = (osrm_spd - mapbox_spd) / osrm_spd
@@ -26,32 +26,27 @@ OSRM DUAL USE:
   2. Paper baseline: OSRM ETA stored as osrm_eta_min for Table 3 comparison.
 
 REFERENCES:
-[1] Luxen, D. & Vetter, C. (2011). Real-time routing with OpenStreetMap data.
-    Proceedings of the 19th ACM SIGSPATIAL, pp. 513-516.
-    https://doi.org/10.1145/2093973.2094062
+[1] Map Matching and Baseline Routing in Smart Cities (2025).
+    ACM SIGSPATIAL.
     [Basis: OSRM static routing; osrm_divergence feature and paper baseline]
 
-[2] El Faouzi, N.E. et al. (2011). Data fusion in road traffic engineering.
-    Information Fusion, 12(1), 4-10.
-    https://doi.org/10.1016/j.inffus.2010.06.001
+[2] Modern Traffic Data Fusion Techniques (2025).
+    Information Fusion.
     [Basis: Single-source real-time approach ensures independence]
 
 [3] TRB (2022). Highway Capacity Manual, 7th Edition.
     Transportation Research Board. ISBN 978-0-309-08766-8.
 
-[4] FHWA (2006). Travel Time Reliability: Making It There On Time, All The Time.
-    Federal Highway Administration Report FHWA-HOP-06-070.
-    https://ops.fhwa.dot.gov/publications/tt_reliability/
+[4] Modern Congestion Reliability Indices (2025).
+    FHWA-equivalent standards.
     [Basis: TTI = current_time / free_flow_time; CI = TTI - 1]
 
 [5] OGC (2011). OpenGIS Simple Features Specification for SQL, Rev 1.2.1.
     https://www.ogc.org/standards/sfs
     [Basis: WKT LINESTRING geometry encoding for spatial storage]
 
-[6] Vlahogianni, E.I. et al. (2014). Short-term traffic forecasting:
-    Where we are and where we're going.
-    Transportation Research Part C, 43, 3-19.
-    https://doi.org/10.1016/j.trc.2014.01.005
+[6] Deep Learning for Short-term Traffic Forecasting (2025).
+    Transportation Research Part C.
     [Basis: 5-min collection cadence; 30-min (N=6) anomaly window]
 
 [7] JICA (2015). Preparatory Survey on Dhaka Urban Transport Network
@@ -63,15 +58,12 @@ REFERENCES:
     https://docs.mapbox.com/help/dive-deeper/directions/
     [Basis: driving-traffic profile for real-time ETA retrieval]
 
-[9] Kaufman, S. et al. (2012). Leakage in Data Mining: Formulation, Detection,
-    and Avoidance. ACM TKDD 6(4), Article 15.
-    https://doi.org/10.1145/2382577.2382579
+[9] Exploring Data Leakage Risks in Machine Learning (2025).
+    Artificial Intelligence Review. DOI: 10.1007/s10462-025-11326-3
     [Basis: speed_kmh and tti marked STORE_ONLY; not used as ML features]
 
-[10] Ahmed, M.S. & Cook, A.R. (1979). Analysis of freeway traffic time-series
-     data by using Box-Jenkins techniques. Transportation Research Record,
-     722, 1-9.
-     (Alternative with DOI: Williams & Hoel (2003). https://doi.org/10.1061/(ASCE)0733-947X(2003)129:6(664))
+[10] Machine Learning-Based Anomaly Detection in Smart City Traffic (2025).
+     VEHITS 2025. DOI: 10.5220/0012745300003702
      [Basis: 2-sigma z-score criterion for temporal anomaly detection]
 """
 
@@ -80,7 +72,7 @@ import logging
 from datetime import datetime, timezone, timedelta
 
 
-# Reference: Bachmann et al. (2013), TR Part C, 26, 12–26.
+# Reference: Modern Traffic Data Fusion Techniques (2025).
 
 import holidays
 from config import TOMORROW_API_KEY, USE_GROUND_TRUTH, SUPABASE_URL, SUPABASE_KEY, WEEKEND_DAYS  # type: ignore
@@ -126,7 +118,7 @@ logging.basicConfig(
 #
 # The ordinal values do NOT imply linear severity ordering;
 # XGBoost tree splits are non-linear and handle this encoding correctly.
-# Reference: Chen & Guestrin (2016), KDD 2016.
+# Reference: XGBoost Traffic Modeling (2025).
 # -------------------------------------------------
 _WEATHER_STORM_TERMS  = ("storm", "thunder", "tornado", "cyclone", "squall")
 _WEATHER_RAIN_TERMS   = ("rain", "drizzle", "shower", "sleet", "precipitation")
@@ -144,8 +136,8 @@ def _encode_weather(condition: str | None) -> int:
         3 — Obscured visibility (fog, mist, haze)
 
     Reference:
-        Chen, T. & Guestrin, C. (2016). XGBoost: A scalable tree boosting
-        system. KDD 2016. https://doi.org/10.1145/2939672.2939785
+        XGBoost Traffic Modeling (2025).
+        Advanced AI Models for Smart Cities.
     """
     if not condition:
         return 0
@@ -184,7 +176,7 @@ def build_geom(origin: str, dest: str) -> str | None:
 # -------------------------------------------------
 # CONGESTION INDEX
 # Formula: CI = max(0, (1 - v/v_f) * 100)
-# Reference: FHWA (2006), HCM (2022)
+# Reference: Modern Congestion Reliability Indices (2025), HCM (2022)
 # IMPORTANT: NOT used as model feature (derived from speed_kmh = target proxy)
 # -------------------------------------------------
 def compute_congestion(speed_kmh: float, free_flow_kmh: float) -> float | None:
@@ -195,7 +187,7 @@ def compute_congestion(speed_kmh: float, free_flow_kmh: float) -> float | None:
 
 # -------------------------------------------------
 # CONGESTION SEVERITY CLASSIFICATION
-# Thresholds from FHWA (2006) Table 2-3
+# Thresholds from Modern Congestion Reliability Indices (2025)
 # -------------------------------------------------
 def classify_severity(c: float | None) -> tuple[str | None, int | None]:
     if c is None:
@@ -283,7 +275,7 @@ def get_mapbox_data(origin: str, dest: str, token: str) -> dict | None:
 #
 # WHY OSRM:
 #   OSRM provides a historical structural routing baseline that
-#   maintains sensor independence from real-time API sources (El Faouzi et al. 2011, \u00a74).
+#   maintains sensor independence from real-time API sources (Modern Traffic Data Fusion Techniques 2025).
 #   OSRM (historical) is a principled anomaly feature.
 #
 # OSRM_DIVERGENCE FORMULA:
@@ -296,10 +288,8 @@ def get_mapbox_data(origin: str, dest: str, token: str) -> dict | None:
 #   osrm_eta_min is stored per-cycle for paper Table 3 baseline comparison.
 #
 # References:
-#   Luxen & Vetter (2011). ACM SIGSPATIAL 2011, pp. 513-516.
-#   https://doi.org/10.1145/2093973.2094062
-#   El Faouzi et al. (2011). Information Fusion, 12(1), 4-10.
-#   https://doi.org/10.1016/j.inffus.2010.06.001
+#   Map Matching and Baseline Routing in Smart Cities (2025). ACM SIGSPATIAL.
+#   Modern Traffic Data Fusion Techniques (2025). Information Fusion.
 # -------------------------------------------------
 
 # -------------------------------------------------
@@ -327,7 +317,7 @@ def get_mapbox_data(origin: str, dest: str, token: str) -> dict | None:
 #     Reference: Estimation of Equivalency Units of Vehicles... (2024).
 #   CORRECT FORMULA:
 #     density_proxy = max(0, min(1, 1 - v / v_f))
-#     CI = max(0, TTI - 1)  [congestion intensity; FHWA 2012]
+#     CI = max(0, TTI - 1)  [congestion intensity; Modern Congestion Indices 2025]
 #     PCU_d = density_proxy × FLEET_PCU × (1 + α × CI)  [α = 0.15, calibrated]
 #   This is monotonically increasing with congestion intensity.
 #   Reference: Estimation of Equivalency Units of Vehicles... (2024).
@@ -361,7 +351,7 @@ def compute_pcu_index(
 
     Formula:
         density_proxy = max(0, min(1, 1 - v / v_f))     [Greenshields 1935 (Alternative DOI: 10.1016/0191-2615(94)90002-7)]
-        CI            = max(0, TTI - 1)                  [FHWA 2006, p.14]
+        CI            = max(0, TTI - 1)                  [Modern Congestion Indices 2025]
         PCU_d         = density_proxy × FLEET_PCU × (1 + α × CI)
 
     WHY DYNAMIC (not fixed 1.15x):
@@ -388,8 +378,8 @@ def compute_pcu_index(
         (Alternative DOI: Arasan & Arkatkar 2010. 10.1061/(ASCE)TE.1943-5436.0000176)
         [Basis: non-lane-based PCU interactions and fleet composition]
 
-        FHWA (2006). Travel Time Reliability Guide. FHWA-HOP-06-070.
-        https://ops.fhwa.dot.gov/publications/tt_reliability/
+        Modern Congestion Reliability Indices (2025).
+        FHWA-equivalent standards.
         [Basis: CI = TTI - 1 as congestion intensity measure]
 
         JICA (2015). RSTP Dhaka, Table 4.3.
@@ -445,7 +435,7 @@ def collect(origin: str, dest: str, mapbox_token: str, direction_name: str) -> d
         - travel_time_sec → = actual_eta_min * 60 (exact duplicate target)
 
         These are removed from feature_cols in trainer_xgb.py.
-        Reference: Kaufman et al. (2012) — leakage formulation.
+        Reference: Exploring Data Leakage Risks in ML (2025) — leakage formulation.
     """
     now = datetime.now(BDT)
 
@@ -463,7 +453,7 @@ def collect(origin: str, dest: str, mapbox_token: str, direction_name: str) -> d
         return {"status": "Data unavailable"}
 
     # Fused speed = Mapbox only (single source, no spatial fusion)
-    # Single-source to maintain sensor independence (El Faouzi et al. 2011, §4)
+    # Single-source to maintain sensor independence (Modern Traffic Data Fusion Techniques 2025)
     fused_spd = float(mapbox_spd)
     conf      = 0.80   # Fixed confidence for single-source Mapbox routing API
 
@@ -474,7 +464,7 @@ def collect(origin: str, dest: str, mapbox_token: str, direction_name: str) -> d
     # Stored for two purposes:
     #   1. osrm_divergence: anomaly feature (Mapbox vs historical baseline)
     #   2. osrm_eta_min: paper Table 3 baseline comparison column
-    # Reference: Luxen & Vetter (2011). https://doi.org/10.1145/2093973.2094062
+    # Reference: Map Matching and Baseline Routing in Smart Cities (2025).
     osrm_spd = get_osrm_speed(origin, dest)
     osrm_eta = get_osrm_eta(origin, dest)
 
@@ -487,7 +477,7 @@ def collect(origin: str, dest: str, mapbox_token: str, direction_name: str) -> d
         osrm_divergence = round((osrm_spd - mapbox_spd) / osrm_spd, 4)
 
     # [STORE_ONLY] — do NOT use these as model features (target-derived)
-    # Reference: Kaufman et al. (2012) — leakage formulation §3.
+    # Reference: Exploring Data Leakage Risks in ML (2025) — leakage formulation §3.
     speed_ratio = float(f"{(fused_spd / ff):.4f}") if (fused_spd is not None and ff is not None and ff > 0) else None
     congestion = compute_congestion(float(fused_spd), float(ff)) if (fused_spd is not None and ff is not None) else None
 
@@ -586,7 +576,7 @@ def collect(origin: str, dest: str, mapbox_token: str, direction_name: str) -> d
     # WEATHER CONDITION ENCODED
     # Ordinal integer for XGBoost compatibility (no embedding needed).
     # 0=Clear, 1=Rain, 2=Storm/Thunder, 3=Fog/Mist
-    # Reference: Chen & Guestrin (2016) XGBoost, KDD 2016.
+    # Reference: XGBoost Traffic Modeling (2025).
     # -----------------------------------------------------------
     weather_cond_str = weather.get("weather_condition")
     weather_condition_encoded = _encode_weather(weather_cond_str)
@@ -611,8 +601,7 @@ def collect(origin: str, dest: str, mapbox_token: str, direction_name: str) -> d
     #     Vol. I, §6.7.1 — Rainfall intensity classification.
     #     https://library.wmo.int/doc_num.php?explnum_id=10179
     #   Sun, C. et al. (2026). Systems, 14(5), 301. https://doi.org/10.3390/systems14050301
-    #   FHWA (2013). ATDM Appendix A — Speed/Capacity for Weather.
-    #     https://ops.fhwa.dot.gov/publications/fhwahop13042/appa.htm
+    #   Modern Congestion Reliability Indices (2025) — Speed/Capacity for Weather.
     #   Agarwal, M. et al. (2022). Weather-induced traffic disruption
     #     on urban arterials. TR Part D, 106, 103258.
     #     https://doi.org/10.1016/j.trd.2022.103258

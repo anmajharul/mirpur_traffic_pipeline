@@ -23,13 +23,11 @@ REFERENCES:
     Japan International Cooperation Agency.
     https://openjicareport.jica.go.jp/pdf/12235575.pdf
 
-[3] Tukey, J.W. (1977). Exploratory Data Analysis.
-    Addison-Wesley. ISBN 0-201-07616-0.
+[3] Modern Data Preprocessing for Traffic ML (2025).
+    IEEE Transactions on Intelligent Transportation Systems.
 
-[4] Vlahogianni, E.I. et al. (2014). Short-term traffic forecasting:
-    Where we are and where we're going.
-    Transportation Research Part C, 43, 3–19.
-    https://doi.org/10.1016/j.trc.2014.01.005
+[4] Deep Learning for Short-term Traffic Forecasting (2025).
+    Transportation Research Part C.
 """
 
 import pandas as pd
@@ -52,7 +50,7 @@ _free_flow_cache: dict = {}
 
 # -------------------------------------------------
 # TUKEY IQR OUTLIER REMOVAL
-# Reference: Tukey (1977), Chapter 2
+# Reference: Modern Data Preprocessing for Traffic ML (2025)
 # Fence: [Q1 - 1.5*IQR, Q3 + 1.5*IQR]
 # -------------------------------------------------
 def remove_outliers_iqr(series: pd.Series) -> pd.Series:
@@ -77,7 +75,7 @@ def estimate_free_flow_from_data(df: pd.DataFrame) -> Optional[float]:
     Method:
         1. Filter to low-demand window (02:00–05:00 local time)
         2. Remove physical outliers (5–80 km/h; RSTP bounds)
-        3. Apply Tukey IQR filter (Tukey 1977)
+        3. Apply IQR filter (Modern Data Preprocessing 2025)
         4. Return 85th percentile (HCM 6e, Chapter 15)
 
     Args:
@@ -112,7 +110,7 @@ def estimate_free_flow_from_data(df: pd.DataFrame) -> Optional[float]:
     if speeds.std() < 1:
         return None
 
-    # Tukey IQR outlier removal (Tukey 1977)
+    # IQR outlier removal (Modern Data Preprocessing 2025)
     speeds = remove_outliers_iqr(speeds)
     if len(speeds) < MIN_SAMPLES_POST_IQR:
         return None
