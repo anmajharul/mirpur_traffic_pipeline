@@ -1,9 +1,6 @@
 name: Weather Insights Daily Trainer
 
 on:
-  schedule:
-    # 20:00 UTC = 02:00 AM BDT (Daily)
-    - cron: '0 20 * * *'
   workflow_dispatch:
 
 jobs:

@@ -35,22 +35,38 @@ def run_experiment(name: str, df: pd.DataFrame, target_col: str,
                    use_tcn: bool, use_attention: bool, exclude_weather: bool):
     logging.info(f"\n{'='*50}\nSTARTING EXPERIMENT: {name}\n{'='*50}")
     
+    # ── 0. Strict RNG Seeding (Q1 Reproducibility Fix) ──
+    # Reference: Pineau et al. (2021) "Improving Reproducibility in Machine Learning Research". 
+    # JMLR. (Machine Learning Reproducibility Checklist).
+    # Without resetting the seed *per experiment*, subsequent ablations suffer from
+    # RNG state leakage, completely invalidating comparative performance claims.
+    np.random.seed(RANDOM_STATE)
+    torch.manual_seed(RANDOM_STATE)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(RANDOM_STATE)
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
-    # ── 1. Feature Setup ──
+    # ── 1. Feature Setup (Late Fusion Ready) ──
     drop_cols = ["id", "created_at", "prediction_time", "corridor_id", "direction", 
                  "weather_condition", "status", "severity_status", "time_slot", "day_of_week", 
                  "reason", "pcu_source", "geom",
                  "speed_kmh", "speed_ratio", "congestion_percent", "tti", "travel_time_sec",
                  "anomaly_score", "emission_congestion_cross", "is_anomaly", "osrm_divergence", "pcu_index"]
-    feature_cols = [c for c in df.columns if c not in drop_cols and c != target_col]
     
-    # Also explicitly drop any remaining object/string columns just to be safe
-    feature_cols = [c for c in feature_cols if df[c].dtype not in ['object', 'string']]
+    weather_cols_all = ["temperature", "humidity", "wind_speed", "visibility_km", "pm2_5", "pm10", "co_level", "no2_level", "aqi"]
+    
+    traffic_cols = [c for c in df.columns if c not in drop_cols and c not in weather_cols_all and c != target_col]
+    traffic_cols = [c for c in traffic_cols if df[c].dtype not in ['object', 'string']]
+    
+    weather_cols = [c for c in weather_cols_all if c in df.columns]
     
     if exclude_weather:
-        weather_cols = ["temperature", "humidity", "wind_speed", "visibility_km", "pm2_5", "pm10", "co_level", "no2_level", "aqi"]
-        feature_cols = [c for c in feature_cols if c not in weather_cols]
+        weather_cols = []
+        
+    feature_cols = traffic_cols + weather_cols
+    num_traffic_features = len(traffic_cols)
+    num_weather_features = len(weather_cols)
         
     # ── 2. Train/Test Split (Chronological 80/20) ──
     n = len(df)
@@ -91,7 +107,8 @@ def run_experiment(name: str, df: pd.DataFrame, target_col: str,
     
     # Model Setup
     model = TCN_TFT_Hybrid(
-        num_features=len(feature_cols),
+        num_traffic_features=num_traffic_features,
+        num_weather_features=num_weather_features,
         hidden_size=HIDDEN_SIZE,
         num_heads=NUM_HEADS,
         pred_len=PRED_LEN,
@@ -101,7 +118,9 @@ def run_experiment(name: str, df: pd.DataFrame, target_col: str,
     ).to(device)
     
     criterion = QuantileLoss(QUANTILES)
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+    # Added weight decay for regularization on the small dataset
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-4)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=2)
     
     # Training Loop
     best_val_loss = float('inf')
@@ -126,6 +145,10 @@ def run_experiment(name: str, df: pd.DataFrame, target_col: str,
                 val_loss += criterion(pred, by).item()
         
         val_loss /= len(val_loader)
+        
+        # Step the learning rate scheduler
+        scheduler.step(val_loss)
+        
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             patience_counter = 0
@@ -133,6 +156,7 @@ def run_experiment(name: str, df: pd.DataFrame, target_col: str,
         else:
             patience_counter += 1
             if patience_counter >= EARLY_STOP_PATIENCE:
+                logging.info(f"Early stopping triggered at epoch {epoch}")
                 break
                 
     # Evaluation

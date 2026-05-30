@@ -1,9 +1,6 @@
 name: Hourly ML Forecast Generator
 
 on:
-  schedule:
-    # Runs every hour at minute 0
-    - cron: '0 * * * *'
   workflow_dispatch:
 
 jobs:

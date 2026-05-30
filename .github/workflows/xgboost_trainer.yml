@@ -1,9 +1,6 @@
 name: XGBoost Daily Trainer
 
 on:
-  schedule:
-    # 19:00 UTC = 01:00 AM BDT (Daily)
-    - cron: '0 19 * * *'
   workflow_dispatch:
 
 jobs:

@@ -1,9 +1,6 @@
 name: Deep Learning Weekly Trainer
 
 on:
-  schedule:
-    # 21:00 UTC (Friday) = 03:00 AM BDT (Saturday)
-    - cron: '0 21 * * 5'
   workflow_dispatch:
 
 jobs:
