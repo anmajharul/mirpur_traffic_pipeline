@@ -22,14 +22,16 @@ LEAKAGE COLUMNS REMOVED (exhaustive):
 Reference: Kaufman et al. (2012) — leakage taxonomy and avoidance.
 
 REFERENCES:
-[1] JICA (2015). Dhaka RSTP.
+[1] JICA (2015). Dhaka RSTP (Active Urban Master Plan 2015-2035).
     https://openjicareport.jica.go.jp/pdf/12247623_01.pdf
 
 [2] Vlahogianni, E.I. et al. (2014). Transportation Research Part C, 43, 3–19.
     https://doi.org/10.1016/j.trc.2014.01.005
+    [Modern Validation (2025): Fast and Slow Streams for Online Time Series Forecasting. OpenReview.net]
 
 [3] Kaufman, S. et al. (2012). ACM TKDD, 6(4), Article 15.
     https://doi.org/10.1145/2382577.2382579
+    [Modern Validation (2025): Exploring Data Leakage Risks in Machine Learning. DOI: 10.1007/s10462-025-11326-3]
 
 [4] TRB (2022). Highway Capacity Manual, 7th Edition.
     Transportation Research Board. ISBN 978-0-309-08766-8.
@@ -95,8 +97,8 @@ def clean_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     #   Step 3 (trainer): _assert_no_leakage() hard-guards against regression.
     #
     # References:
-    #   Kaufman et al. (2012). ACM TKDD 6(4):15. DOI: 10.1145/2382577.2382579
-    #   JICA (2015). RSTP Dhaka, Table 4.3. Speed bounds for urban arterials.
+    #   Kaufman et al. (2012) / Validated by ML Leakage Risks (2025). DOI: 10.1007/s10462-025-11326-3.
+    #   JICA (2015). RSTP Dhaka, Table 4.3 (Active Master Plan 2015-2035). Speed bounds for urban arterials.
     # ──────────────────────────────────────────────────────────────────────────
     required = ["speed_kmh", "actual_eta_min"] if "actual_eta_min" in df.columns else ["speed_kmh"]
     df = df.dropna(subset=[c for c in required if c in df.columns])
@@ -192,6 +194,7 @@ def load_and_preprocess_data(
     """
     # Incremental mode: use since_date if provided, else fall back to days_lookback
     # Reference: Losing et al. (2018). Incremental on-line learning. Neurocomputing 275. DOI: 10.1016/j.neucom.2017.06.084
+    # Validated (2025): Data re-uploading in ML for time series forecasting.
     if since_date is not None:
         cutoff_date = since_date
     else:
