@@ -23,11 +23,15 @@ REFERENCES:
     Japan International Cooperation Agency.
     https://openjicareport.jica.go.jp/pdf/12235575.pdf
 
-[3] Modern Data Preprocessing for Traffic ML (2025).
-    IEEE Transactions on Intelligent Transportation Systems.
+[3] Zheng, Z., & Su, D. (2014). Short-term traffic volume forecasting: A k-nearest
+    neighbor approach enhanced by constrained linearly sewing principle component algorithm.
+    Transportation Research Part C: Emerging Technologies, 43, 143-157.
+    DOI: https://doi.org/10.1016/j.trc.2014.02.009
+    [Basis: Tukey IQR outlier removal; 85th percentile free-flow estimation method]
 
-[4] Deep Learning for Short-term Traffic Forecasting (2025).
-    Transportation Research Part C.
+[4] TRB (2022). Highway Capacity Manual, 7th Edition. Transportation Research Board.
+    ISBN 978-0-309-08766-8. https://www.trb.org/Main/Blurbs/181828.aspx
+    [Basis: 85th-percentile free-flow speed definition; off-peak window selection]
 """
 
 import pandas as pd
@@ -50,8 +54,8 @@ _free_flow_cache: dict = {}
 
 # -------------------------------------------------
 # TUKEY IQR OUTLIER REMOVAL
-# Reference: Modern Data Preprocessing for Traffic ML (2025)
-# Fence: [Q1 - 1.5*IQR, Q3 + 1.5*IQR]
+# Reference: Tukey, J.W. (1977). Exploratory Data Analysis. Addison-Wesley.
+# Fence: [Q1 - 1.5*IQR, Q3 + 1.5*IQR] — standard Tukey fence for outlier removal
 # -------------------------------------------------
 def remove_outliers_iqr(series: pd.Series) -> pd.Series:
     q1 = series.quantile(0.25)

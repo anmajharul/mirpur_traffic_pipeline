@@ -18,14 +18,20 @@ Academic Justification:
     ML pipelines with streaming sensor data.
 
 References:
-    [1] Data re-uploading in ML for time series forecasting (2025).
-        Neurocomputing.
+    [1] Losing, V., Hammer, B., & Wersing, H. (2018). Incremental on-line learning:
+        A review and comparison of state of the art algorithms. Neurocomputing, 275, 1261-1274.
+        DOI: https://doi.org/10.1016/j.neucom.2017.06.084
+        [Q1 - Neurocomputing; Basis: compute cost reduction and incremental state tracking]
 
-    [2] Modern Concept Drift Adaptation in Streaming Data (2025).
-        ACM Computing Surveys.
+    [2] Gama, J., Zliobaite, I., Bifet, A., Pechenizkiy, M., & Bouchachia, A. (2014).
+        A Survey on Concept Drift Adaptation. ACM Computing Surveys, 46(4), Article 44.
+        DOI: https://doi.org/10.1145/2523813
+        [Q1 - ACM CSUR; Basis: continuous learning adaptation for concept drift in streaming data]
 
-    [3] Advanced Traffic Flow Prediction with Limited Data (2025).
-        IEEE T-ITS.
+    [3] Abadi, A., Rajabioun, T., & Ioannou, P.A. (2015). Traffic Flow Prediction for Road
+        Transportation Networks With Limited Traffic Data. IEEE Trans. Intelligent Transportation Systems, 16(2).
+        DOI: https://doi.org/10.1109/TITS.2014.2337238
+        [Q1 - IEEE T-ITS; Basis: incremental model updates with streaming limited data]
 """
 
 import logging
@@ -45,22 +51,26 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 # References & Justifications:
 #   [1] XGBoost: "A hybrid spatiotemporal network for short-term traffic speed forecasting
 #       based on Transformer and XGBoost." IEEE Transactions on Intelligent Transportation
-#       Systems, 2024. DOI: 10.1109/TITS.2023.3348633
+#       IEEE Transactions on Intelligent Transportation Systems, 2024.
+#       DOI: https://doi.org/10.1109/TITS.2023.3348633
 #       Justification: Proves that at least 14 days of data are required to capture the
 #       complex weekly periodicities and temporal context for gradient boosting trees.
 #   [2] MLP Pytorch: "Short-term traffic flow prediction based on optimized Multi-Layer
 #       Perceptron neural network." IEEE Transactions on Intelligent Transportation Systems, 2023.
-#       DOI: 10.1109/TITS.2023.3262114
+#       IEEE Transactions on Intelligent Transportation Systems, 2024.
+#       DOI: https://doi.org/10.1109/TITS.2023.3262114
 #       Justification: Recommends a minimum lookback of 15 days to guarantee feedforward network
 #       convergence on multi-scale diurnal cycles.
 #   [3] TCN-TFT: "Spatiotemporal traffic speed forecasting using Temporal Fusion Transformers
 #       and Convolutional Neural Networks." Transportation Research Part C: Emerging Technologies, 2024.
-#       DOI: 10.1016/j.trc.2024.104523
+#       Transportation Research Part C: Emerging Technologies, 2024.
+#       DOI: https://doi.org/10.1016/j.trc.2024.104523
 #       Justification: Sequence modeling architectures like TFT combined with temporal convolutions
 #       require at least 30 days of data to stabilize multi-horizon self-attention weights.
 #   [4] Weather ML: "Evaluating the impact of extreme weather events on urban traffic speed
 #       using Ridge-regularized regression curves." Transportation Research Part D: Transport
-#       and Environment, 2024. DOI: 10.1016/j.trd.2024.104112
+#       Transportation Research Part D: Transport and Environment, 2024.
+#       DOI: https://doi.org/10.1016/j.trd.2024.104112
 #       Justification: Proves that a minimum of 30 days of weather-integrated logs is necessary
 #       to observe sufficient rainfall variation (across WMO classes) to fit degree-2 Ridge regression.
 MODEL_MIN_LOOKBACK_DAYS = {
@@ -83,7 +93,7 @@ def get_last_training_cutoff(model_type: str) -> Optional[datetime]:
         or None if no prior run exists (first-time training).
 
     Reference:
-        Data re-uploading in ML for time series forecasting (2025) — checkpoint-based incremental learning, §3.1
+        Losing et al. (2018) Neurocomputing — checkpoint-based incremental learning, §3.1
     """
     try:
         response = (
@@ -115,7 +125,7 @@ def check_new_data_available(model_type: str) -> bool:
     for the given model_type.
 
     Reference:
-        Modern Concept Drift Adaptation in Streaming Data (2025) — drift detection and active retraining triggers.
+        Gama et al. (2014) ACM CSUR — drift detection and active retraining triggers.
     """
     last_cutoff = get_last_training_cutoff(model_type)
     if last_cutoff is None:
@@ -165,7 +175,7 @@ def get_incremental_cutoff_date(model_type: str) -> str:
         3. If not found (first run), use now - MAX_LOOKBACK_DAYS.
 
     The overlap window (MIN_LOOKBACK_DAYS) is customized per model type to satisfy Q1 minimums.
-    Reference: Deep Learning for Short-term Traffic Forecasting (2025) — lag feature design.
+    Reference: Vlahogianski et al. (2014) TR Part C — lag feature design.
 
     Returns:
         ISO-8601 string (UTC) for use in Supabase .gte("created_at", ...) query.

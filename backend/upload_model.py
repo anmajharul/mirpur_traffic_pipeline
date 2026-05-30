@@ -9,8 +9,8 @@ Purpose:
 REFERENCES:
 [1] Supabase Python Storage upload docs
     https://supabase.com/docs/reference/python/storage-from-upload
-[2] XGBoost Model IO docs
-    https://xgboost.readthedocs.io/en/latest/tutorials/saving_model.html
+[2] Chen, T., & Guestrin, C. (2016). XGBoost: A scalable tree boosting system.
+    KDD '16. DOI: https://doi.org/10.1145/2939672.2939785
 """
 
 from __future__ import annotations

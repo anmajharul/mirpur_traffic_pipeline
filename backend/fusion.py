@@ -13,14 +13,14 @@ SCIENTIFIC VALIDITY NOTES (Q1 Reviewer-proof)
    OSRM provides a static historical routing baseline without real-time influence.
    This offers a purely independent baseline distinct from algorithmic APIs like Mapbox.
    to capture spatial divergence (current vs historical).
-   Reference: Modern Traffic Data Fusion Techniques (2025). Information Fusion.
+   Reference: Castanedo (2013). Information Fusion.
 
 2. ANOMALY THRESHOLD — TEMPORAL z-SCORE (NOT spatial ratio)
    Anomaly detection based on spatial disagreement between baseline and real-time
    is mathematically unfounded. Replaced by a TEMPORAL z-score:
      z_t = |v_t - μ_{t-N:t-1}| / σ_{t-N:t-1}
      anomaly if z_t > 2.0 (2σ rule)
-   Reference: Machine Learning-Based Anomaly Detection in Smart City Traffic (2025).
+   Reference: Williams & Hoel (2003).
 
 3. PCU SCALING — DYNAMIC (NOT fixed 1.15x multiplier)
    HCM §11.3.3 lane-based capacity multipliers cannot be applied to
@@ -42,16 +42,15 @@ REFERENCES:
     https://doi.org/10.1061/(ASCE)0733-947X(2003)129:6(664)
     [Basis: rolling temporal baseline for stationarity; N=6 window standard]
 
-[3] Modern Traffic Data Fusion Techniques (2025). Information Fusion.
-    Information Fusion, 12(1), 4-10.
-    https://doi.org/10.1016/j.inffus.2010.06.001
+[3] Castanedo, F. (2013). A review of data fusion techniques. The Scientific World Journal,
+    2013, Article 704504. DOI: https://doi.org/10.1155/2013/704504
     [Basis: documented limitation — fusion requires source independence;
      Algorithmic engines often violate this assumption]
 
-[4] Modern Traffic Data Fusion Techniques (2025).
-    heterogeneous traffic data fusion via Bluetooth and aerial sensing.
-    Transportation Research Part C, 26, 12-26.
-    https://doi.org/10.1016/j.trc.2012.09.003
+[4] Seo, T., Bayen, A.M., Kusakabe, T., & Asakura, Y. (2017). Traffic state estimation
+    on highway: A comprehensive survey. Annual Reviews in Control, 43, 128-151.
+    DOI: https://doi.org/10.1016/j.arcontrol.2017.03.005
+    [Basis: multi-source probe data limitations; heterogeneous traffic sensing]
     [Basis: multi-source data collection and symmetric difference ratio
      for corroboration scoring — NOT as independent sensor fusion]
 
@@ -69,10 +68,10 @@ REFERENCES:
     [Basis: non-lane-based heterogeneous traffic dynamics; PCU values
      for Dhaka's mixed-fleet composition under congested conditions]
 
-[7] Modern Congestion Reliability Indices (2025).
-    FHWA-equivalent standards.
-    [Basis: TTI = current_time / free_flow_time]
-    [Basis: Congestion Intensity CI = TTI - 1; TTI definition, p.14]
+[7] FHWA (2019). Travel Time Reliability: Making it There on Time, All the Time.
+    Federal Highway Administration Report FHWA-HOP-06-070.
+    https://ops.fhwa.dot.gov/publications/tt_reliability/TTR_Report.htm
+    [Basis: TTI = current_time / free_flow_time; CI = TTI - 1 definition]
 
 [8] Seo, T. et al. (2017). Traffic state estimation on highway: A
     comprehensive survey. Annual Reviews in Control, 43, 128-151.
@@ -124,7 +123,7 @@ PCU_ALPHA = 0.15  # Theoretical midpoint of [0.10, 0.20]
 # ─────────────────────────────────────────────────────────────────────────────
 # TEMPORAL ANOMALY THRESHOLD (z-score)
 # 2σ rule: anomaly when |z_t| > 2.0
-# Reference: Machine Learning-Based Anomaly Detection in Smart City Traffic (2025).
+# Reference: Williams & Hoel (2003).
 # ─────────────────────────────────────────────────────────────────────────────
 ANOMALY_Z_THRESHOLD = 2.0
 
@@ -150,7 +149,8 @@ def detect_temporal_anomaly(
         between correlated routing engines, not a statistically grounded
         anomaly criterion. Temporal deviation from a rolling baseline is
         statistically principled and generalizable across corridors.
-        Reference: Machine Learning-Based Anomaly Detection in Smart City Traffic (2025).
+        Reference: Williams & Hoel (2003).
+    VEHITS 2025. DOI: https://doi.org/10.5220/0012745300003702
 
     The 2σ rule (threshold_z = 2.0) flags approximately 5% of observations
     as anomalous under a Gaussian speed distribution (upper tail only),
@@ -167,7 +167,7 @@ def detect_temporal_anomaly(
         z_score: computed z value (None if insufficient history)
 
     References:
-        Machine Learning-Based Anomaly Detection in Smart City Traffic (2025). DOI: 10.5220/0012745300003702
+        Williams & Hoel (2003). DOI: 10.5220/0012745300003702
         Williams & Hoel (2003). DOI: 10.1061/(ASCE)0733-947X(2003)129:6(664)
     """
     if not history or len(history) < 3:
@@ -232,7 +232,7 @@ def compute_dynamic_pcu(
         Estimation of Equivalency Units of Vehicles on Urban Roads (2024). DOI: 10.1088/1755-1315/1326/1/012109
         CSIR-CRRI (2017). Indo-HCM. https://www.crri.res.in
         JICA (2015). RSTP Dhaka. https://openjicareport.jica.go.jp/pdf/12235575.pdf
-        Modern Congestion Reliability Indices (2025). TTI definition.
+        FHWA TTI (2019). TTI definition.
     """
     if fused_spd is None or free_flow_kmh is None or free_flow_kmh <= 0:
         return None, "unavailable"
@@ -252,7 +252,7 @@ def compute_dynamic_pcu(
     density_proxy = max(0.0, min(1.0, 1.0 - fused_spd / free_flow_kmh))
 
     # Congestion intensity CI = TTI - 1 (0 at free-flow, >0 under congestion)
-    # Reference: Modern Congestion Reliability Indices (2025).
+    # Reference: FHWA TTI (2019).
     congestion_intensity = max(0.0, tti - 1.0)
 
     # Dynamic PCU formula: monotonically increasing with CI

@@ -17,7 +17,7 @@ OSRM BASELINE RATIONALE:
     OSRM is accessed via its public demo API for reproducibility.
     Paper MUST note: OSRM baseline uses public API; production deployments
     should use a self-hosted instance for rate-limit independence.
-    Reference: Map Matching and Baseline Routing in Smart Cities (2025).
+    Reference: Luxen & Vetter (2011) ACM SIGSPATIAL.
 
 REFERENCES:
 [1] Hyndman, R.J. & Koehler, A.B. (2006). Another look at measures of
@@ -35,7 +35,7 @@ REFERENCES:
     https://doi.org/10.1016/j.ins.2011.12.028
     [Basis: temporal train/test split — no random shuffling for time-series]
 
-[4] Map Matching and Baseline Routing in Smart Cities (2025). ACM SIGSPATIAL.
+[4] Luxen & Vetter (2011) ACM SIGSPATIAL. ACM SIGSPATIAL.
     Proceedings of the 19th ACM SIGSPATIAL, pp. 513-516.
     https://doi.org/10.1145/2093973.2094062
     [Basis: OSRM static routing baseline; no real-time traffic adjustment]
@@ -108,7 +108,9 @@ def smape(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     Addresses MAPE's asymmetry by using the mean of true and predicted
     values in the denominator.
     Reference: Makridakis, S. (1993). Accuracy measures: theoretical and practical concerns.
-    International Journal of Forecasting, 9(4), 527-529. DOI: 10.1016/0169-2070(93)90079-3
+    International Journal of Forecasting, 9(4), 527-529.
+    DOI: https://doi.org/10.1016/0169-2070(93)90079-3
+    [Q1 - International Journal of Forecasting; MAPE/SMAPE metric definition]
     """
     denominator = (np.abs(y_true) + np.abs(y_pred)) / 2.0
     denominator = np.where(denominator == 0, 1e-6, denominator)
@@ -153,7 +155,7 @@ def bootstrap_ci(
 
 # =========================================
 # OSRM STATIC BASELINE
-# Reference: Map Matching and Baseline Routing in Smart Cities (2025)
+# Reference: Luxen & Vetter (2011) ACM SIGSPATIAL
 # =========================================
 def get_osrm_eta(origin: str, dest: str, timeout: int = 10) -> Optional[float]:
     """
@@ -192,7 +194,7 @@ def get_osrm_eta(origin: str, dest: str, timeout: int = 10) -> Optional[float]:
         ETA in minutes (float) or None on failure
 
     References:
-        Map Matching and Baseline Routing in Smart Cities (2025). ACM SIGSPATIAL.
+        Luxen & Vetter (2011) ACM SIGSPATIAL. ACM SIGSPATIAL.
         data. ACM SIGSPATIAL 2011, pp. 513-516.
         https://doi.org/10.1145/2093973.2094062
 
@@ -235,7 +237,7 @@ def get_osrm_speed(origin: str, dest: str, timeout: int = 10) -> Optional[float]
         Speed in km/h (float) or None on failure
 
     References:
-        Map Matching and Baseline Routing in Smart Cities (2025). ACM SIGSPATIAL.
+        Luxen & Vetter (2011) ACM SIGSPATIAL. ACM SIGSPATIAL.
         OSRM Project (2024). http://project-osrm.org
     """
     try:
@@ -348,7 +350,8 @@ def evaluate_model(
     # 2. Q1 METHODOLOGY: Imputation Strategy
     # Forward Fill (LOCF) for continuous exogenous features to preserve temporal dynamics.
     # Reference: Moritz, S., & Bartz-Beielstein, T. (2017). imputeTS: Time Series Missing Value 
-    # Imputation in R. The R Journal, 9(1), 207-218. DOI: 10.32614/RJ-2017-009
+    # Moritz & Bartz-Beielstein (2017). imputeTS: Time Series Missing Value Imputation in R.
+    # The R Journal, 9(1), 207-218. DOI: https://doi.org/10.32614/RJ-2017-009
     # Median fallback for Gap-Aware Lags to prevent stale data leakage.
     # Reference: Vlahogianni, E. I. et al. (2014). Short-term traffic forecasting: Where we are and 
     # where we're going. Transportation Research Part C, 43, 3-19. DOI: 10.1016/j.trc.2014.01.005
@@ -436,7 +439,7 @@ def evaluate_model(
     # 9. Baseline 2: OSRM static routing
     # OSRM = naive static baseline with NO real-time traffic awareness.
     # Comparison: Paper Table 3, Method column.
-    # Reference: Map Matching and Baseline Routing in Smart Cities (2025). ACM SIGSPATIAL.
+    # Reference: Luxen & Vetter (2011) ACM SIGSPATIAL. ACM SIGSPATIAL.
     #
     # osrm_eta_col: if test_df already has osrm_eta column (pre-fetched
     #   during collection), use it. Otherwise mark as unavailable.

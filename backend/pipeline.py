@@ -19,20 +19,32 @@ ARCHITECTURE NOTE (Cloud Run):
   1800s timeout) triggered by train.yml every 12 hours. Training never runs
   inside the collector job — this prevents RAM exhaustion and collection
   blocking.
-  Reference: ML Systems Technical Debt Tracking (2025) — separation of training and serving.
+  Reference: Sculley et al. (2015). Hidden technical debt in machine learning systems.
+  NeurIPS 2015. https://proceedings.neurips.cc/paper/2015/hash/86df7dcfd896fcaf2674f757a2463eba-Abstract.html
+  [Basis: separation of training and serving pipelines prevents cascading failures]
 
 REFERENCES:
-[1] ML Systems Technical Debt Tracking (2025).
-    IEEE Software.
+[1] Sculley, D. et al. (2015). Hidden technical debt in machine learning systems.
+    Advances in Neural Information Processing Systems (NeurIPS 2015).
+    https://proceedings.neurips.cc/paper/2015/hash/86df7dcfd896fcaf2674f757a2463eba-Abstract.html
+    [Basis: separation of training and serving pipelines; graceful degradation design]
 
-[2] Modern Data Preprocessing for Traffic ML (2025).
-    IEEE Transactions on Intelligent Transportation Systems.
+[2] Zheng, Z., & Su, D. (2014). Short-term traffic volume forecasting: A k-nearest
+    neighbor approach enhanced by constrained linearly sewing principle component algorithm.
+    Transportation Research Part C: Emerging Technologies, 43, 143-157.
+    DOI: https://doi.org/10.1016/j.trc.2014.02.009
+    [Q1 - TR Part C; Basis: data preprocessing pipeline for 5-min cadence urban traffic]
 
-[3] Deep Learning for Short-term Traffic Forecasting (2025).
-    Transportation Research Part C.
+[3] Vlahogianski, E.I., Karlaftis, M.G., & Golias, J.C. (2014).
+    Short-term traffic forecasting: Where we are and where we are going.
+    Transportation Research Part C: Emerging Technologies, 43, 3-19.
+    DOI: https://doi.org/10.1016/j.trc.2014.01.005
+    [Q1 - TR Part C; Basis: 5-min collection cadence for urban arterial forecasting]
 
-[4] Modern Traffic Data Fusion Techniques (2025). Information Fusion.
-    https://doi.org/10.1016/j.trc.2012.09.003
+[4] Castanedo, F. (2013). A review of data fusion techniques.
+    The Scientific World Journal, 2013, Article 704504.
+    DOI: https://doi.org/10.1155/2013/704504
+    [Basis: multi-source fusion (Mapbox + OSRM + Weather) source-independence requirement]
 """
 
 import time
@@ -53,7 +65,7 @@ BDT = timezone(timedelta(hours=6))
 # SAFE DATABASE INSERTION
 # FIX: validates response.data is non-empty list — not just non-None
 # Empty list means constraint violation was silently suppressed.
-# Reference: ML Systems Technical Debt Tracking (2025) — silent failure anti-pattern
+# Reference: Sculley et al. (2015) NeurIPS — silent failure anti-pattern
 # ======================================================
 def safe_insert(table: str, record: dict) -> bool:
     """
@@ -86,7 +98,7 @@ def safe_insert(table: str, record: dict) -> bool:
 # COLLECTION CYCLE
 # Five-minute collection is a standard short-term forecasting cadence for
 # urban arterials and matches the horizon_min used downstream.
-# Reference: Deep Learning for Short-term Traffic Forecasting (2025), TR Part C.
+# Reference: Vlahogianski et al. (2014) TR Part C, TR Part C.
 # ======================================================
 def run_collection_cycle():
     """

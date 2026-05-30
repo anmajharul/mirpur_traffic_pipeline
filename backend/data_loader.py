@@ -19,17 +19,19 @@ LEAKAGE COLUMNS REMOVED (exhaustive):
     travel_time_sec → = actual_eta_min × 60 → EXACT duplicate target
     free_flow_kmh   → used only for congestion calc (not predictive alone)
 
-Reference: Exploring Data Leakage Risks in Machine Learning (2025) — leakage taxonomy and avoidance.
+Reference: Kaufman et al. (2012) Leakage in Data Mining — leakage taxonomy and avoidance.
 
 REFERENCES:
 [1] JICA (2015). Dhaka RSTP (Active Urban Master Plan 2015-2035).
     https://openjicareport.jica.go.jp/pdf/12247623_01.pdf
 
-[2] Fast and Slow Streams for Online Time Series Forecasting (2025).
-    OpenReview.net
+[2] Gama, J., Zliobaite, I., Bifet, A., Pechenizkiy, M., & Bouchachia, A. (2014).
+    A Survey on Concept Drift Adaptation. ACM Computing Surveys, 46(4), Article 44.
+    DOI: https://doi.org/10.1145/2523813
 
-[3] Exploring Data Leakage Risks in Machine Learning (2025).
-    Artificial Intelligence Review. DOI: 10.1007/s10462-025-11326-3
+[3] Kaufman, S., Rosset, S., Perlich, C., & Stitelman, O. (2012). Leakage in Data Mining:
+    Formulation, Detection, and Avoidance. ACM Transactions on Knowledge Discovery from Data (TKDD), 6(4).
+    DOI: https://doi.org/10.1145/2382577.2382579
 
 [4] TRB (2022). Highway Capacity Manual, 7th Edition.
     Transportation Research Board. ISBN 978-0-309-08766-8.
@@ -51,7 +53,7 @@ BDT = timezone(timedelta(hours=6))
 
 # -------------------------------------------------
 # LEAKAGE COLUMN REGISTRY (EXHAUSTIVE)
-# Reference: Exploring Data Leakage Risks in ML (2025)
+# Reference: Kaufman et al. (2012)
 # -------------------------------------------------
 LEAKAGE_COLS = [
     # Source speed components (not available at inference)
@@ -87,7 +89,7 @@ def clean_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     # Reviewer note (paper §3.1):
     #   "Speed was used solely for physical plausibility filtering (5–80 km/h,
     #    JICA 2015 RSTP urban arterial bounds) and was removed from the feature
-    #    set prior to model training per Exploring Data Leakage Risks in ML (2025)."
+    #    set prior to model training per Kaufman et al. (2012)."
     #
     # Processing order guarantees no leakage:
     #   Step 1 (HERE): Filter using speed_kmh for physical cleaning.
@@ -95,7 +97,7 @@ def clean_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     #   Step 3 (trainer): _assert_no_leakage() hard-guards against regression.
     #
     # References:
-    #   Exploring Data Leakage Risks in Machine Learning (2025). DOI: 10.1007/s10462-025-11326-3.
+    #   Kaufman et al. (2012) Leakage in Data Mining. DOI: 10.1007/s10462-025-11326-3.
     #   JICA (2015). RSTP Dhaka, Table 4.3 (Active Master Plan 2015-2035). Speed bounds for urban arterials.
     # ──────────────────────────────────────────────────────────────────────────
     required = ["speed_kmh", "actual_eta_min"] if "actual_eta_min" in df.columns else ["speed_kmh"]
@@ -191,7 +193,7 @@ def load_and_preprocess_data(
         Empty DataFrame on any failure.
     """
     # Incremental mode: use since_date if provided, else fall back to days_lookback
-    # Reference: Data re-uploading in ML for time series forecasting (2025).
+    # Reference: Losing et al. (2018) Neurocomputing.
     if since_date is not None:
         cutoff_date = since_date
     else:

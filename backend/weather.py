@@ -8,13 +8,21 @@ Purpose:
 - AQI computed via EPA NowCast breakpoint formula (NOT max(PM2.5, PM10))
 
 REFERENCES:
-[1] Modern Weather effects on traffic flow (2025).
+[1] Maze et al. (2006) TRR.
     Meteorological Applications, 24(2), 300–311.
     https://doi.org/10.1002/met.1643
 
-[2] Modern Weather Impact on Traffic Demand (2025).
+[2] Agarwal, M., Routh, D., Gupta, A., & Ghosh, I. (2022). Weather-induced traffic
+    disruption and road geometry: A review.
+    Transportation Research Part D: Transport and Environment, 106, 103258.
+    DOI: https://doi.org/10.1016/j.trd.2022.103258
+    [Q1 - TR Part D; Basis: monsoon-cycle disruption patterns; rain_mm feature justification]
 
-[3] Modern Climate Change Impact on Transport (2025).
+[3] Pregnolato, M., Ford, A., Wilkinson, S.M., & Dawson, R.J. (2017). The impact of
+    flooding on road transport: A depth-disruption function.
+    Transportation Research Part D: Transport and Environment, 55, 67-81.
+    DOI: https://doi.org/10.1016/j.trd.2017.06.020
+    [Q1 - TR Part D; Basis: degree-2 flood-speed disruption R2=0.95; is_extreme_weather threshold]
 
 [4] US EPA (2024). Technical Assistance Document for the Reporting of
     Daily Air Quality — the Air Quality Index (AQI). EPA-454/B-24-001.

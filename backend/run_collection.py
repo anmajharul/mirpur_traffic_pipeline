@@ -16,11 +16,15 @@ WHAT IT DOES per run:
   - Exits with code 0 on partial success, 1 if ALL corridors fail
 
 REFERENCES:
-[1] Deep Learning for Short-term Traffic Forecasting (2025).
-    Transportation Research Part C.
-    [Basis: 5-min collection cadence standard]
-[2] ML Systems Technical Debt Tracking (2025).
-    IEEE Software.
+[1] Vlahogianski, E.I., Karlaftis, M.G., & Golias, J.C. (2014).
+    Short-term traffic forecasting: Where we are and where we are going.
+    Transportation Research Part C: Emerging Technologies, 43, 3-19.
+    DOI: https://doi.org/10.1016/j.trc.2014.01.005
+    [Q1 - TR Part C; Basis: 5-min cadence standard for urban arterial short-term forecasting]
+[2] Sculley, D. et al. (2015). Hidden technical debt in machine learning systems.
+    Advances in Neural Information Processing Systems (NeurIPS 2015).
+    https://proceedings.neurips.cc/paper/2015/hash/86df7dcfd896fcaf2674f757a2463eba-Abstract.html
+    [Basis: single-shot job pattern prevents scheduler debt; fail-fast exit codes]
 """
 
 from __future__ import annotations

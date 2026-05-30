@@ -10,14 +10,19 @@ FIX: MIN_SPEED_KMH changed from 0 to 5 to match data_loader.py and RSTP bounds.
     Inconsistent physical bounds across modules = reviewer rejection.
 
 REFERENCES:
-[1] Exploring Data Leakage Risks in Machine Learning (2025).
-    Artificial Intelligence Review. DOI: 10.1007/s10462-025-11326-3
+[1] Kaufman, S., Rosset, S., Perlich, C., & Stitelman, O. (2012). Leakage in Data Mining:
+    Formulation, Detection, and Avoidance. ACM Transactions on Knowledge Discovery from Data (TKDD), 6(4).
+    DOI: https://doi.org/10.1145/2382577.2382579
 
-[2] ML Systems Technical Debt Tracking (2025).
-    IEEE Software.
+[2] Sculley, D. et al. (2015). Hidden technical debt in machine learning systems.
+    Advances in Neural Information Processing Systems (NeurIPS 2015).
+    https://proceedings.neurips.cc/paper/2015/hash/86df7dcfd896fcaf2674f757a2463eba-Abstract.html
+    [Basis: schema validation and data monitoring as production ML debt prevention]
 
-[3] Google TFX (2024). TensorFlow Data Validation Architecture Guide.
-    https://www.tensorflow.org/tfx/guide/tfdv
+[3] Baylor, D. et al. (2017). TFX: A TensorFlow-Based Production-Scale Machine
+    Learning Platform. Proceedings of KDD 2017, 1387-1395.
+    DOI: https://doi.org/10.1145/3097983.3098021
+    [Basis: Pipeline-level data validation; schema enforcement; duplicate detection]
 
 [4] JICA (2015). Dhaka RSTP (Active Urban Master Plan 2015-2035) — physical speed bounds.
     https://openjicareport.jica.go.jp/pdf/12235575.pdf
@@ -147,7 +152,7 @@ def _check_temporal_leakage(df: pd.DataFrame, report: dict) -> None:
     Verify timestamps are monotonically non-decreasing after sort.
     Non-monotonic sequence after explicit sort indicates duplicate
     timestamps or data source merge issues.
-    Reference: Exploring Data Leakage Risks in Machine Learning (2025).
+    Reference: Kaufman et al. (2012) Leakage in Data Mining.
     """
     if not df["created_at"].is_monotonic_increasing:
         report["temporal_leakage"] = True

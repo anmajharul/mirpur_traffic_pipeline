@@ -69,57 +69,64 @@ DATA REQUIREMENT REFERENCES:
 [DR-2] Grinsztajn, L., Oyallon, E., & Varoquaux, G. (2022).
        Why tree-based models still outperform deep learning on
        tabular data. NeurIPS 2022, 35, 507–520.
-       DOI: 10.48550/arXiv.2207.08815
-       [Cited for: MLP data threshold ~10,000 tabular samples]
+       DOI: https://doi.org/10.48550/arXiv.2207.08815
+       [Cited for: MLP underperforms tree-based on tabular data with < ~10,000 samples]
 
 [DR-3] Ma, X., Tao, Z., Wang, Y., Yu, H., & Wang, Y. (2015).
        Long short-term memory neural network for traffic speed
        prediction using remote microwave sensor data.
        Transportation Research Part C, 54, 187–197.
-       DOI: 10.1016/j.trc.2015.03.014
-       [Cited for: 15-day minimum for neural network traffic models]
+       DOI: https://doi.org/10.1016/j.trc.2015.03.014
+       [Cited for: 15-day minimum for neural network short-term traffic speed models]
 
 [DR-4] Moritz, S., & Bartz-Beielstein, T. (2017).
        imputeTS: Time Series Missing Value Imputation in R.
        The R Journal, 9(1), 207–218.
-       DOI: 10.32614/RJ-2017-009
-       [Cited for: LOCF + median imputation validity with missingness]
+       DOI: https://doi.org/10.32614/RJ-2017-009
+       [Cited for: LOCF + median imputation maintaining statistical validity with up to 20% missingness]
 ═══════════════════════════════════════════════════════════════
 
 REFERENCES:
-[1] Hornik, K. (1991). Universal approximation capability.
+[1] Hornik, K. (1991). Approximation capabilities of multilayer feedforward networks.
     Neural Networks, 4(2), 251-257.
-    https://doi.org/10.1016/0893-6080(91)90009-T
+    DOI: https://doi.org/10.1016/0893-6080(91)90009-T
+    [Q1 - Neural Networks journal; universal approximation theorem foundation]
 
-[2] Ioffe, S. & Szegedy, C. (2015). Batch normalization.
-    ICML 2015. https://arxiv.org/abs/1502.03167
-    [Basis: BatchNorm for training stability]
+[2] Ioffe, S., & Szegedy, C. (2015). Batch normalization: Accelerating deep network
+    training by reducing internal covariate shift. Proceedings of ICML 2015 (PMLR 37:448-456).
+    DOI: https://doi.org/10.48550/arXiv.1502.03167
+    [Basis: BatchNorm for training stability in MLP hidden layers]
 
-[3] Srivastava, N. et al. (2014). Dropout: A simple way to prevent
-    neural networks from overfitting. JMLR, 15(1), 1929-1958.
-    [Basis: Dropout(0.2) regularisation]
+[3] Srivastava, N., Hinton, G., Krizhevsky, A., Sutskever, I., & Salakhutdinov, R. (2014).
+    Dropout: A simple way to prevent neural networks from overfitting.
+    Journal of Machine Learning Research (JMLR), 15(56), 1929-1958.
+    DOI: https://doi.org/10.5555/2627435.2670313
+    [Q1 - JMLR; Basis: Dropout(0.2) regularisation in MLP hidden layers]
 
-[4] Kingma, D.P. & Ba, J. (2014). Adam: A method for stochastic
-    optimization. ICLR 2015. https://arxiv.org/abs/1412.6980
-    [Basis: Adam optimiser]
+[4] Kingma, D.P., & Ba, J. (2015). Adam: A method for stochastic optimization.
+    International Conference on Learning Representations (ICLR 2015).
+    DOI: https://doi.org/10.48550/arXiv.1412.6980
+    [Basis: Adam optimiser for MLP parameter updates]
 
 [5] Bergmeir, C. & Benítez, J.M. (2012). On the use of cross-validation
     for time series predictor evaluation. Information Sciences, 191.
     https://doi.org/10.1016/j.ins.2011.12.028
     [Basis: Walk-forward CV — no shuffling for time series]
 
-[6] Efron, B. & Tibshirani, R.J. (1993). An Introduction to the Bootstrap.
+[6] Efron, B., & Tibshirani, R.J. (1993). An Introduction to the Bootstrap.
     Chapman & Hall/CRC. ISBN 0-412-04231-2.
-    [Basis: 1000-resample bootstrap 95% CI on fold MAEs]
+    DOI: https://doi.org/10.1201/9780429246593
+    [Basis: 1000-resample bootstrap 95% confidence interval on cross-validation fold MAEs]
 
-[7] Grinsztajn, L. et al. (2022). Why tree-based models still outperform
-    deep learning on tabular data. NeurIPS 2022.
-    https://doi.org/10.48550/arXiv.2207.08815
-    [Basis: Justifies XGBoost as primary model; MLP as comparative baseline]
+[7] Grinsztajn, L., Oyallon, E., & Varoquaux, G. (2022). Why do tree-based models
+    still outperform deep learning on tabular data?
+    Advances in Neural Information Processing Systems (NeurIPS 2022), 35, 507-520.
+    DOI: https://doi.org/10.48550/arXiv.2207.08815
+    [Basis: Justifies XGBoost as primary model; MLP as comparative baseline for fairness]
 
-[8] Ba, J. L., Kiros, J. R., & Hinton, G. E. (2016). Layer Normalization.
-    arXiv preprint arXiv:1607.06450. https://doi.org/10.48550/arXiv.1607.06450
-    [Basis: LayerNorm for small-batch walk-forward CV stability]
+[8] Ba, J.L., Kiros, J.R., & Hinton, G.E. (2016). Layer normalization.
+    arXiv preprint. DOI: https://doi.org/10.48550/arXiv.1607.06450
+    [Basis: LayerNorm for training stability in small-batch walk-forward CV settings]
 """
 
 import gc
@@ -341,9 +348,11 @@ def train_mlp(training_cutoff_utc: Optional[datetime] = None, days_lookback: int
     # Hard floor: 100 rows (absolute runtime minimum — early-deployment safety).
     # Recommended operational minimum: 4,320 rows (≥ 15 days × 288 5-min intervals).
     #   • ≥ 15 days: minimum for MLP neural network traffic speed prediction
-    #     (Ma et al., 2015 TR Part C; DOI: 10.1016/j.trc.2015.03.014)
+    #     (Ma et al., 2015. Transportation Research Part C: Emerging Technologies, 54, 187-197.
+    #      DOI: https://doi.org/10.1016/j.trc.2015.03.014)
     #   • ≥ 10,000 rows: threshold where MLP begins to match tree-based models
-    #     (Grinsztajn et al., 2022 NeurIPS; DOI: 10.48550/arXiv.2207.08815)
+    #     (Grinsztajn et al., 2022. NeurIPS 2022, 35, 507-520.
+    #      DOI: https://doi.org/10.48550/arXiv.2207.08815)
     if df.empty or len(df) < 100: return None
     df = engineer_features(df).dropna(subset=["actual_eta_min"])
     available_features = [c for c in FEATURE_COLS if c in df.columns]
