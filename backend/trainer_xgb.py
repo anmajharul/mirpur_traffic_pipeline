@@ -82,6 +82,8 @@ DATA REQUIREMENT REFERENCES:
 REFERENCES:
 [1] Chen, T. & Guestrin, C. (2016). XGBoost: A scalable tree boosting system.
     KDD 2016. https://doi.org/10.1145/2939672.2939785
+    [Modern Validation (2025): Prediction of traffic time using XGBoost model 
+     with hyperparameter optimization. DOI: 10.1007/s11042-025-20646-z]
 
 [2] Bergmeir, C. & Benítez, J.M. (2012). On the use of cross-validation for
     time series predictor evaluation. Information Sciences, 191, 192–213.
@@ -95,6 +97,8 @@ REFERENCES:
 
 [5] Kaufman, S. et al. (2012). ACM TKDD, 6(4), Article 15.
     https://doi.org/10.1145/2382577.2382579
+    [Modern Validation (2025): Exploring Data Leakage Risks in Machine Learning. 
+     DOI: 10.1007/s10462-025-11326-3]
 
 [6] Vlahogianni, E.I. et al. (2014). Short-term traffic forecasting:
     Where we are and where we're going.

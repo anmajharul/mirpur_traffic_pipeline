@@ -78,6 +78,8 @@ DATA REQUIREMENT REFERENCES:
 References:
 [1] Kaufman, S. et al. (2012). Leakage in data mining. ACM TKDD, 6(4), Article 15.
     DOI: 10.1145/2382577.2382579
+    [Modern Validation (2025): Exploring Data Leakage Risks in Machine Learning. 
+     DOI: 10.1007/s10462-025-11326-3]
 [2] Pregnolato, M. et al. (2017). The impact of flooding on road transport.
     Transportation Research Part D, 55, 67–81. DOI: 10.1016/j.trd.2017.06.020
 [3] Hoerl, A.E. & Kennard, R.W. (1970). Ridge Regression.
