@@ -109,33 +109,33 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 # =====================================================================
 # 1. Temporal Convolutional Networks (TCN)
 #    Reference: Bai, Kolter & Koltun (2018). arXiv:1803.01271.
-    DOI: https://doi.org/10.48550/arXiv.1803.01271
+#    DOI: https://doi.org/10.48550/arXiv.1803.01271
 #    Theory: Dilated causal convolutions exhibit longer empirical memory and lack the 
 #    vanishing gradient issues of LSTMs, making them strictly superior for abrupt 
 #    traffic shocks (e.g., sudden rainfall).
 #
 # 2. Temporal Fusion Transformers (TFT) & Variable Selection Network (VSN)
 #    Reference: Lim et al. (2021). International Journal of Forecasting, 37(4), 1748-1764.
-    DOI: https://doi.org/10.1016/j.ijforecast.2021.03.012
+#    DOI: https://doi.org/10.1016/j.ijforecast.2021.03.012
 #    Theory: VSN filters out noisy/irrelevant features at each time step. The weights
 #    extracted from VSN act as Native Explainable AI (XAI), replacing the need for 
 #    post-hoc explainers like SHAP for multi-variate continuous time-series.
 #
 # 3. Multi-Head Attention for Traffic Sequence
 #    Reference: Vaswani et al. (2017). Attention is all you need. NeurIPS 2017.
-    arXiv: https://arxiv.org/abs/1706.03762
+#    arXiv: https://arxiv.org/abs/1706.03762
 #    Theory: Captures global temporal dependencies (e.g., how morning peak conditions 
 #    affect evening congestion) bypassing recurrent sequential distance limits.
 #
 # 4. Sequence Window Length Configuration
 #    Reference: Williams & Hoel (2003). VEHITS.
-    DOI: https://doi.org/10.5220/0012745300003702
+#    DOI: https://doi.org/10.5220/0012745300003702
 #    Theory: 12-step (60-minute) lookback window is empirically optimal for short-term 
 #    urban arterial forecasting.
 #
 # 5. Probabilistic Forecasting (Quantile Loss)
 #    Reference: Gneiting & Raftery (2007). JASA, 102(477), 359-378.
-    DOI: https://doi.org/10.1198/016214506000001437
+#    DOI: https://doi.org/10.1198/016214506000001437
 # =====================================================================
 
 RANDOM_STATE = 42
