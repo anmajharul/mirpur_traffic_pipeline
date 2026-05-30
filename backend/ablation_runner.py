@@ -44,6 +44,8 @@ def run_experiment(name: str, df: pd.DataFrame, target_col: str,
     torch.manual_seed(RANDOM_STATE)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(RANDOM_STATE)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
@@ -187,7 +189,6 @@ def run_experiment(name: str, df: pd.DataFrame, target_col: str,
 def run_ablation():
     df = load_and_preprocess_data(days_lookback=30)
     df = df.sort_values("created_at").reset_index(drop=True)
-    df = df[df["direction"] == "North (Mirpur-11 to 10)"]
     
     if len(df) < 500:
         logging.error("Insufficient data.")
@@ -214,7 +215,7 @@ def run_ablation():
     # Print Table 4
     res_df = pd.DataFrame(results)
     print("\n" + "="*60)
-    print("TABLE 4: ABLATION STUDY RESULTS (NORTH CORRIDOR: MIRPUR-11 TO 10)")
+    print("TABLE 4: ABLATION STUDY RESULTS (ALL CORRIDORS)")
     print("="*60)
     print(res_df.to_string(index=False))
     print("="*60)

@@ -22,6 +22,24 @@ This module's hard floor is 500 rows (per corridor direction).
 The recommended operational minimum is 14,400 rows per corridor
 (≥ 50 days × 288 5-min intervals) before windowing.
 
+**CONTINUOUS LEARNING JUSTIFICATION:** The operational window is sufficient 
+precisely because the system employs a Continuous Incremental Learning 
+Framework (`incremental_state.py`). The model does not need a full year 
+of static data to learn seasonality; it dynamically retrains on new data, 
+effectively learning domain drift continuously.
+
+═══════════════════════════════════════════════════════════════
+METHODOLOGY JUSTIFICATION: SEQUENCE-TO-SEQUENCE MULTI-HORIZON PREDICTION
+═══════════════════════════════════════════════════════════════
+While the `data_collector.py` module queries the Mapbox routing ETA 
+with a 5-minute sampling cadence (representing the "current" routing state), 
+this TCN-TFT model performs true multi-horizon forecasting for the next 30 
+minutes. It achieves this by constructing a chronological sliding window of 
+these 5-minute routing ETAs. The model is trained to map a sequence of past 
+ETAs (SEQ_LEN = 12) to a sequence of future ETAs (PRED_LEN = 6). Thus, it 
+predicts the *future evolution* of the routing ETA over the next 30 minutes, 
+perfectly bridging the data collection cadence with the prediction horizon.
+
 Justification from Q1 literature:
   • Lim et al. (2021) validated TFT on the Traffic dataset
     (PeMS-Bay / METR-LA) with >200,000 samples, and on the
@@ -149,6 +167,8 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 # Set seeds for reproducibility (Q1 Requirement)
 np.random.seed(RANDOM_STATE)
 torch.manual_seed(RANDOM_STATE)
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
 
 
 # ---------------------------------------------------------------------

@@ -11,6 +11,9 @@ LIMITATION (document in paper):
     Real-time GTFS (General Transit Feed Specification) integration
     was not available for Dhaka MRT during the study period.
     Future work should integrate GTFS-RT feed from DMTCL when available.
+    PAPER DEFENSE: In the absence of a real-time GTFS-RT feed from DMTCL 
+    during the study period, scheduled headway was used as a categorical 
+    approximation for transit availability.
 
 REFERENCES:
 [1] DMTCL (2026). MRT Line-6 Operational Timetable & May 2026 Updates.

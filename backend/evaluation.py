@@ -172,10 +172,16 @@ def get_osrm_eta(origin: str, dest: str, timeout: int = 10) -> Optional[float]:
 
     LIMITATION (must disclose in paper §4.1):
     - Uses public demo API (rate-limited, not guaranteed uptime)
-    - Production benchmark should use self-hosted OSRM instance
+    - For production environments and reproducible benchmark deployments, a self-hosted
+      OSRM instance using local .osrm graphs MUST be used to bypass rate limits
+      and ensure deterministic uptime.
     - OSRM routes may differ from Mapbox routes (road graph differences)
     - Staleness (MI5): OSRM routing uses static OSM data which may not reflect 
       recent road network changes or long-term construction.
+      PAPER DEFENSE: OSRM is explicitly NOT used as a real-time predictor. It serves 
+      strictly as a Historical Static Baseline to compute spatial anomaly divergence 
+      against real-time Mapbox telemetry, rendering map staleness a feature of the 
+      baseline rather than a bug.
 
     Args:
         origin: 'lat,lon' string

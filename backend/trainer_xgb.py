@@ -27,6 +27,12 @@ as an absolute runtime floor; the recommended operational minimum
 is 30 days (8,640 records) to also capture monthly patterns and
 half-season effects.
 
+**CONTINUOUS LEARNING JUSTIFICATION:** The 30-day window is sufficient 
+precisely because the system employs a Continuous Incremental Learning 
+Framework (`incremental_state.py`). The model does not need a full year 
+of static data to learn seasonality; it dynamically retrains on new data, 
+effectively learning domain drift continuously.
+
 Justification from Q1 literature:
   • ≥ 14 days ensures at least 2 full weekday–weekend cycles,
     which is the minimum identified by Vlahogianni et al. (2014)
