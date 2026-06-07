@@ -99,7 +99,7 @@ def estimate_free_flow_from_data(df: pd.DataFrame) -> Optional[float]:
     df["created_at"] = df["created_at"].dt.tz_convert(BDT)
     df["hour"] = df["created_at"].dt.hour
 
-    # Low-demand window: 02:00–05:00 (HCM off-peak proxy)
+    # Low-demand window: 02:00–05:00 (HCM off-peak heuristic estimation)
     night_df = df[(df["hour"] >= 2) & (df["hour"] <= 5)]
     if len(night_df) < MIN_SAMPLES_NIGHT:
         return None

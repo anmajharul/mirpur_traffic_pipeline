@@ -12,7 +12,7 @@ LEAKAGE COLUMNS REMOVED (exhaustive):
     mapbox_speed    → one component of fused speed_kmh
     data_confidence → post-hoc fusion quality (not available at inference)
     # anomaly_ratio   → removed feature (inference unavailable)
-    speed_kmh       → derived from actual_eta_min (TARGET PROXY)
+    speed_kmh       → derived from actual_eta_min (api_derived_target)
     congestion_percent → = f(speed_kmh, free_flow) → target-derived
     tti             → = actual_eta_min / free_time → DIRECT target transform
     speed_ratio     → = speed_kmh / free_flow → target-derived
@@ -62,7 +62,7 @@ LEAKAGE_COLS = [
     "anomaly_ratio",
 
     # TARGET-DERIVED FEATURES (critical leakage)
-    "speed_kmh",           # = distance_km / (actual_eta_min / 60) → target proxy
+    "speed_kmh",           # = distance_km / (actual_eta_min / 60) → api_derived_target
     "congestion_percent",  # = (1 - speed_kmh/ff) * 100 → target-derived
     "tti",                 # = actual_eta_min / free_time → DIRECT linear transform
     "speed_ratio",         # = speed_kmh / ff → target-derived

@@ -21,7 +21,7 @@ This framework rectifies several common methodological flaws found in applied tr
 2. **Temporal Z-Score Anomaly Detection (Ahmed & Cook 1979)** 
    Spatially computed anomaly thresholds have been replaced with a rolling temporal baseline. An event is flagged as an anomaly only if current $v_t$ deviates by $> 2\sigma$ from recent history.
 3. **Dynamic PCU Scaling (Chandra & Sikdar 2000)** 
-   HCM 7th Ed. capacity multipliers are explicitly designed for lane-based traffic and fail in highly unstructured flows. We employ a dynamic Congestion Intensity (CI) scaled Passenger Car Unit proxy.
+   HCM 7th Ed. capacity multipliers are explicitly designed for lane-based traffic and fail in highly unstructured flows. We employ a dynamic Congestion Intensity (CI) scaled Passenger Car Unit estimation.
 4. **Leakage-Safe Walk-Forward CV (Bergmeir & Benítez 2012)**
    Traditional $K$-fold cross-validation suffers from temporal data leakage. We use a 5-fold temporal walk-forward split and strictly apply median imputations and baselines derived **only** from the training partition.
 5. **Robust Deep Learning Baselines (Lim et al. 2021)**

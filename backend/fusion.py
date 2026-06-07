@@ -25,7 +25,7 @@ SCIENTIFIC VALIDITY NOTES (Q1 Reviewer-proof)
 3. PCU SCALING — DYNAMIC (NOT fixed 1.15x multiplier)
    HCM §11.3.3 lane-based capacity multipliers cannot be applied to
    non-lane-based vehicle equivalence units (PCU).
-   New formula: PCU_d = density_proxy × FLEET_PCU × (1 + α × CI)
+   New formula: PCU_d = estimated_density × FLEET_PCU × (1 + α × CI)
    Reference: Estimation of Equivalency Units of Vehicles... Heterogeneous Traffic (2024).
 
 REFERENCES:
@@ -195,9 +195,9 @@ def compute_dynamic_pcu(
     Compute dynamic PCU-weighted mixed-traffic density index.
 
     Formula:
-        density_proxy = max(0, min(1, 1 - v / v_f))
-        CI            = max(0, TTI - 1)               [congestion intensity]
-        PCU_d         = density_proxy × FLEET_PCU × (1 + α × CI)
+        estimated_density = max(0, min(1, 1 - v / v_f))
+        CI                = max(0, TTI - 1)               [congestion intensity]
+        PCU_d             = estimated_density × FLEET_PCU × (1 + α × CI)
 
     WHY NOT FIXED 1.15x MULTIPLIER:
         HCM 7e §11.3.3 describes capacity reduction under incidents for
@@ -240,16 +240,16 @@ def compute_dynamic_pcu(
     if tti is None:
         tti = max(1.0, free_flow_kmh / max(fused_spd, 1e-3))
 
-    # Bounded Greenshields density proxy
+    # Bounded Greenshields heuristic density estimation
     # Reference: Greenshields (1934) — historical basis; bounded for non-lane flow
     # LIMITATION (NF2): Pan et al. (2025) demonstrate that speed-flow curves in 
     # oversaturated conditions form a U-shape, contradicting the monotonic 
-    # Greenshields assumption. We use Greenshields as a baseline proxy, but 
+    # Greenshields assumption. We use Greenshields as a first-order approximation, but 
     # this limitation should be acknowledged in the final paper.
-    # PAPER DEFENSE: Greenshields equation is used as a first-order density proxy, 
-    # explicitly acknowledging that in hyper-congested South Asian conditions, 
-    # speed-flow curves may deviate to U-shapes (Pan et al., 2025).
-    density_proxy = max(0.0, min(1.0, 1.0 - fused_spd / free_flow_kmh))
+    # PAPER DEFENSE: Greenshields equation is used as a first-order heuristic density estimation
+    # suitable for data-scarce mixed-traffic environments, explicitly acknowledging that in 
+    # hyper-congested South Asian conditions, speed-flow curves may deviate to U-shapes (Pan et al., 2025).
+    estimated_density = max(0.0, min(1.0, 1.0 - fused_spd / free_flow_kmh))
 
     # Congestion intensity CI = TTI - 1 (0 at free-flow, >0 under congestion)
     # Reference: FHWA TTI (2019).
@@ -257,7 +257,7 @@ def compute_dynamic_pcu(
 
     # Dynamic PCU formula: monotonically increasing with CI
     # (linear in TTI — NOT claimed to be nonlinear)
-    pcu_index = density_proxy * FLEET_PCU * (1.0 + alpha * congestion_intensity)
+    pcu_index = estimated_density * FLEET_PCU * (1.0 + alpha * congestion_intensity)
 
     return float(round(pcu_index, 4)), "dynamic_ci_scaled"
 

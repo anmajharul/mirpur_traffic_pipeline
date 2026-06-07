@@ -81,6 +81,11 @@ DATA REQUIREMENT REFERENCES:
        Soft Computing.
        [Cited for: minimum TCN training duration in weather+traffic
         applications; ≥ 30 days recommended for stable filter convergence]
+
+[DR-5] Arevalo, J., et al. (2020). Gated multimodal networks. 
+       Neural Computing and Applications, 32, 10209–10228. DOI: 10.1007/s00521-019-04555-7
+       [Cited for: Environmental Adaptive Gating Mechanism (EAGM) to dynamically filter out 
+        noise from secondary modalities (weather) during normal conditions]
 ═══════════════════════════════════════════════════════════════
 """
 
@@ -139,8 +144,8 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 # =====================================================================
 
 RANDOM_STATE = 42
-SEQ_LEN      = 12   # 60 minutes of history (5-min intervals)
-PRED_LEN     = 6    # Multi-horizon: Predict next 30 mins (6 steps)
+SEQ_LEN      = 24   # 24 hours of history
+PRED_LEN     = 24   # Predict next 24 hours
 QUANTILES    = [0.1, 0.5, 0.9] # P10, P50 (Median), P90 for probabilistic CI
 HIDDEN_SIZE  = 32
 NUM_HEADS    = 4
@@ -440,6 +445,15 @@ class TCN_TFT_Hybrid(nn.Module):
                 nn.Dropout(0.2),
                 nn.Linear(hidden_size // 2, hidden_size // 2)
             )
+            
+            # --- Q1 ACADEMIC FIX: Environmental Adaptive Gating Mechanism (EAGM) ---
+            # (Reference: Arevalo et al., 2020. Gated Multimodal Networks. DOI: 10.1007/s00521-019-04555-7)
+            # Instead of blindly concatenating weather features (which degraded ablation performance on dry days),
+            # this multimodal gate learns to 'mute' the weather embedding when the weather state is normal/dry.
+            self.weather_gate = nn.Sequential(
+                nn.Linear(num_weather_features + hidden_size, hidden_size // 2),
+                nn.Sigmoid()
+            )
             fusion_size = hidden_size + (hidden_size // 2)
         else:
             fusion_size = hidden_size
@@ -473,11 +487,19 @@ class TCN_TFT_Hybrid(nn.Module):
         # 4. Aggregate & Output (Use last time step)
         last_step_out = attn_out[:, -1, :]
         
-        # 5. Late Fusion (Inject weather at the final context step)
+        # 5. Late Fusion with Environmental Adaptive Gating (EAGM)
         if self.num_weather_features > 0:
             x_weather = x[:, -1, self.num_traffic_features:] # Take latest weather state
             w_out = self.weather_mlp(x_weather)
-            fused_context = torch.cat([last_step_out, w_out], dim=-1)
+            
+            # EAGM: The gate learns when weather is important based on traffic context + weather (Arevalo et al. 2020)
+            gate_input = torch.cat([last_step_out, x_weather], dim=-1)
+            gate = self.weather_gate(gate_input)
+            
+            # Mute/attenuate the weather representation during normal conditions
+            gated_w_out = w_out * gate
+            
+            fused_context = torch.cat([last_step_out, gated_w_out], dim=-1)
         else:
             fused_context = last_step_out
 
@@ -497,21 +519,37 @@ def walk_forward_cv_tcn_tft():
     """
     Q1 METHODOLOGY FIX: Walk-forward CV with strict temporal isolation.
     """
-    # ── INCREMENTAL LEARNING: Load only new data since last training run ──────
+    # ── INCREMENTAL LEARNING: Load full sliding window ────────────────────────
     # Reference: Losing et al. (2018) Neurocomputing.
-    from incremental_state import check_new_data_available, get_incremental_cutoff_date
-    if not check_new_data_available("tcn_tft"):
-        logging.info("[TCN-TFT] Skipping TCN-TFT training: No new data available since last cutoff.")
-        return
-
-    since_date = get_incremental_cutoff_date("tcn_tft")
-
-    df = load_and_preprocess_data(since_date=since_date)
+    from data_loader import load_and_preprocess_data
+    df = load_and_preprocess_data(days_lookback=30)
     if df.empty:
         logging.error("No data available.")
         return
         
-    df = df.sort_values("created_at").reset_index(drop=True)
+    # ── RESOLUTION FIX (Q1 Methodology) ──────────────────────────────────────
+    # Resample to hourly intervals for long-term (24h-48h) sequence modeling.
+    logging.info("Resampling data to hourly intervals for TCN/TFT long-term forecasting...")
+    df["created_at"] = pd.to_datetime(df["created_at"])
+    df = df.set_index("created_at")
+    
+    # Define aggregation rules for weather (mean) and categorical (mode)
+    numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+    agg_dict = {col: "mean" for col in numeric_cols if col != "direction"}
+    
+    # Add dummy direction aggregation so it doesn't drop
+    agg_dict["direction"] = "first"
+    
+    # Group by direction and resample
+    resampled_dfs = []
+    for d, group in df.groupby("direction"):
+        g_res = group.resample("1H").agg(agg_dict).dropna(subset=["actual_eta_min"])
+        g_res["direction"] = d
+        resampled_dfs.append(g_res)
+        
+    df = pd.concat(resampled_dfs).reset_index()
+    df = df.sort_values(by=["direction", "created_at"]).reset_index(drop=True)
+    logging.info(f"Resampled to {len(df)} hourly rows.")
     
     # Exclude leakage features (speed_kmh, tti)
     drop_cols = ["id", "created_at", "prediction_time", "corridor_id", "direction", 
@@ -821,7 +859,7 @@ def walk_forward_cv_tcn_tft():
             "cv_ci95_upper": ci_hi,
             "cv_n_folds":    N_FOLDS,
 
-            # ── Hold-out metrics (CV MAE used as proxy — no separate eval_model) ──
+            # ── Walk-forward CV utilized as primary validation metric (Bergmeir & Benitez, 2012) ──
             # TCN-TFT uses walk-forward CV MAE as the primary reported metric.
             # A full temporal hold-out (like XGBoost/MLP) requires a sklearn-style
             # wrapper; deferred to future work. CV metrics are scientifically valid
@@ -931,14 +969,14 @@ class TCNWrapper:
         ).to(self.device)
         self.scaler = StandardScaler()
 
-    def predict(self, X):
-        X_filled = X.fillna(X.median())
-        X_scaled = self.scaler.transform(X_filled.values.astype(np.float32))
-        X_seq = np.repeat(X_scaled[:, np.newaxis, :], SEQ_LEN, axis=1)
+    def predict(self, X_seq_array):
+        # Q1 FIX: Accept actual temporal sequence (Batch, Seq_Len, Features)
+        # Instead of np.repeat on static features
         self.model.eval()
         with torch.no_grad():
-            preds, _ = self.model(torch.tensor(X_seq, dtype=torch.float32).to(self.device))
-            eta_pred = preds[:, 0, 1].cpu().numpy()
+            preds, _ = self.model(torch.tensor(X_seq_array, dtype=torch.float32).to(self.device))
+            # Extract median prediction (quantile 1)
+            eta_pred = preds[0, :, 1].cpu().numpy()
         return eta_pred
 
 def load_tcn_artifact(artifact_path):
