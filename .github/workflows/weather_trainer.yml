@@ -32,6 +32,9 @@ jobs:
           cd backend
           python train_weather_ml.py
 
+      - name: Sync with remote
+        run: git pull --rebase --autostash origin main
+
       - name: Commit Reports to GitHub
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
