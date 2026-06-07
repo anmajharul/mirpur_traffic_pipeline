@@ -62,6 +62,14 @@ DATA REQUIREMENT REFERENCES:
        WMO-equivalent standards.
        [Cited for: standard rainfall intensity classification used
         to define the 8 evaluation buckets (0–25 mm/hr)]
+
+[DR-5] Karniadakis, G. E., et al. (2021). Physics-informed machine learning. 
+       Nature Reviews Physics, 3(6), 422-440. DOI: 10.1038/s42254-021-00314-5
+       [Cited for: Physics-informed monotonicity constraint to prevent unphysical extrapolation at data extremes]
+
+[DR-6] Kirkpatrick, J., et al. (2017). Overcoming catastrophic forgetting in neural networks. 
+       PNAS. DOI: 10.1073/pnas.1611835114
+       [Cited for: Catastrophic forgetting prevention via predictor variance thresholding in continuous learning]
 ═══════════════════════════════════════════════════════════════
 
 References:
@@ -152,6 +160,17 @@ def train_weather_ml():
 
     print(f"Training on {len(df)} empirical records...")
     
+    # --- Q1 ACADEMIC FIX: PREDICTOR VARIANCE THRESHOLD ---
+    # Catastrophic forgetting prevention (Kirkpatrick et al., 2017, PNAS. DOI: 10.1073/pnas.1611835114):
+    # If the recent dataset has no meaningful rain (e.g., dry season), continuous learning 
+    # on it will cause the model to "forget" rain impacts, producing a flat line (0 impact).
+    # We freeze historical weights if predictor variance is insufficient.
+    max_rain = df['rain_mm'].max()
+    if max_rain < 0.5:
+        print(f"[WEATHER_ML] Skipping training: Max rain in recent data is only {max_rain} mm. "
+              "Insufficient predictor variance. Freezing historical weights to prevent flatlining.")
+        return
+    
     # -- 1. Learn Speed vs Rain --
     # Polynomial Regression allows curve fitting (e.g. slight rain = minor drop, heavy rain = drastic drop)
     X = df[['rain_mm']].values
@@ -190,6 +209,11 @@ def train_weather_ml():
     
     records_to_insert = []
     
+    # Track previous values for Monotonicity Constraint
+    last_speed_drop = 0.0
+    last_cong_bump = 0.0
+    last_aqi_drop = 0.0
+    
     for i, rain_val in enumerate(test_rain_buckets.flatten()):
         # Calculate percentage drops/bumps relative to baseline (0mm rain)
         speed_pred = max(5.0, min(60.0, predicted_speeds[i])) # Clamp speeds
@@ -203,11 +227,25 @@ def train_weather_ml():
         speed_drop_pct = max(0.0, speed_drop_pct) 
         aqi_drop_pct = max(0.0, aqi_drop_pct) # Rain washes out pollution -> AQI drops (improves)
         
+        # --- Q1 ACADEMIC FIX: PHYSICS-INFORMED MONOTONICITY CONSTRAINT ---
+        # Polynomials artificially dip back to 0 at extremes where data is sparse.
+        # Physics-Informed Machine Learning (Karniadakis et al., 2021, Nature Rev. Phys. DOI: 10.1038/s42254-021-00314-5):
+        # Physics dictates that disruption is strictly non-decreasing with respect to rain.
+        # Thus: Heavy rain impact >= Light rain impact.
+        speed_drop_pct = max(speed_drop_pct, last_speed_drop)
+        cong_bump_pct = max(0.0, cong_pred - predicted_congs[0])
+        cong_bump_pct = max(cong_bump_pct, last_cong_bump)
+        aqi_drop_pct = max(aqi_drop_pct, last_aqi_drop)
+        
+        last_speed_drop = speed_drop_pct
+        last_cong_bump = cong_bump_pct
+        last_aqi_drop = aqi_drop_pct
+        
         row = {
             "rain_bucket_mm": float(rain_val),
             "predicted_speed_drop_pct": float(speed_drop_pct),
             "predicted_aqi_drop_pct": float(aqi_drop_pct),
-            "predicted_congestion_bump_pct": float(max(0, cong_pred - predicted_congs[0])),
+            "predicted_congestion_bump_pct": float(cong_bump_pct),
             "confidence_score": float(len(df) / 10000.0),
             "sample_size": int(len(df)),
             "trained_at": datetime.now(timezone.utc).isoformat(),

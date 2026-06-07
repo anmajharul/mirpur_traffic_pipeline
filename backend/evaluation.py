@@ -363,9 +363,10 @@ def evaluate_model(
         X_test_ffill = pd.concat([last_train_row, X_test[ffill_cols]]).ffill().iloc[1:]
         X_test[ffill_cols] = X_test_ffill
 
-    train_medians = X_train.median()
-    X_train = X_train.fillna(train_medians)
-    X_test  = X_test.fillna(train_medians)
+    numeric_cols = X_train.select_dtypes(include=[np.number]).columns
+    train_medians = X_train[numeric_cols].median()
+    X_train[numeric_cols] = X_train[numeric_cols].fillna(train_medians)
+    X_test[numeric_cols]  = X_test[numeric_cols].fillna(train_medians)
 
     # 3. Train (Q1 METHODOLOGY FIX: Optimization Leakage Guard)
     # We split the last 20% of the training fold sequentially to act

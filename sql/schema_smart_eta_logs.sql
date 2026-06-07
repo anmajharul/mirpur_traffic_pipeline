@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS public.smart_eta_logs (
     humidity numeric NULL,
     -- Strict ML Target variable
     actual_eta_min numeric NULL,
-    day_of_week text NULL,
+    day_of_week integer NULL,
     travel_time_sec double precision NULL,
     distance_km double precision NULL,
     -- Data robustness metric
