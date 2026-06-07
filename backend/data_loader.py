@@ -97,7 +97,7 @@ def clean_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     #   Step 3 (trainer): _assert_no_leakage() hard-guards against regression.
     #
     # References:
-    #   Kaufman et al. (2012) Leakage in Data Mining. DOI: 10.1007/s10462-025-11326-3.
+    # Kaufman et al. (2012) Leakage in Data Mining. DOI: 10.1145/2382577.2382579.
     #   JICA (2015). RSTP Dhaka, Table 4.3 (Active Master Plan 2015-2035). Speed bounds for urban arterials.
     # ──────────────────────────────────────────────────────────────────────────
     required = ["speed_kmh", "actual_eta_min"] if "actual_eta_min" in df.columns else ["speed_kmh"]
@@ -129,7 +129,7 @@ def fetch_direction_data(direction: str, days_lookback: int = 14) -> pd.DataFram
     """
     Fetch recent data for one corridor (used for free-flow estimation).
     """
-    cutoff_date = (datetime.utcnow() - timedelta(days=days_lookback)).isoformat()
+    cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days_lookback)).isoformat()
 
     try:
         query = (

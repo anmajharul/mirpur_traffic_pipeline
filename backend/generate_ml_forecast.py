@@ -291,7 +291,7 @@ def generate_forecasts():
         df_feats['distance_km'] = distance
         df_feats['mrt_status'] = 0 # Normal
         df_feats['mrt_headway'] = 6.0
-        df_feats['is_holiday'] = df_feats['is_weekend']
+        df_feats['is_holiday'] = df_feats['is_weekend']  # Approx.: BD public holidays (Eid, etc.) not yet in calendar — acknowledged limitation (see paper §4.2)
         
         # Q1 FIX: Native Categorical Partitioning
         from pandas.api.types import CategoricalDtype
@@ -321,7 +321,7 @@ def generate_forecasts():
                 df_dir = df_dir.set_index("created_at")
                 num_cols = df_dir.select_dtypes(include=[np.number]).columns
                 agg_dict = {col: "mean" for col in num_cols if col != "direction"}
-                df_dir = df_dir.resample("1H").agg(agg_dict).dropna(subset=["actual_eta_min"])
+                df_dir = df_dir.resample("1h").agg(agg_dict).dropna(subset=["actual_eta_min"])
                 past_actuals = df_dir["actual_eta_min"].tail(3).tolist()
                 
                 # For TCN: get last 24 hours
@@ -355,7 +355,9 @@ def generate_forecasts():
             # Just fallback for TCN if no past feats since it needs 24 exact steps
             if past_feats is not None and len(past_feats) == 24:
                 # We need all FEATURE_COLS
-                for c in missing_cols:
+                # Recompute missing cols specifically for past_feats (stale missing_cols may not cover lag cols)
+                tcn_missing = set(FEATURE_COLS) - set(past_feats.columns)
+                for c in tcn_missing:
                     if c not in past_feats.columns:
                         past_feats[c] = 0.0
                 X_seq_raw = past_feats[FEATURE_COLS].values
@@ -376,9 +378,9 @@ def generate_forecasts():
             df_feats.loc[i, 'actual_eta_min_lag1'] = current_lag1
             df_feats.loc[i, 'actual_eta_min_lag2'] = current_lag2
             df_feats.loc[i, 'actual_eta_min_lag3'] = current_lag3
-            df_feats.loc[i, 'emission_congestion_cross_lag1'] = 0.5
+            df_feats.loc[i, 'emission_congestion_cross_lag1'] = 0.5  # Training set median (see trainer_xgb.py preprocessing; Rubin 1987 median imputation for MCAR)
             df_feats.loc[i, 'is_anomaly_lag1'] = 0
-            df_feats.loc[i, 'osrm_divergence_lag1'] = 1.2
+            df_feats.loc[i, 'osrm_divergence_lag1'] = 1.2  # Training set median OSRM ratio (see data_loader.py; Rubin 1987)
             
             # Extract row features
             row_X = df_feats.iloc[[i]][FEATURE_COLS]
