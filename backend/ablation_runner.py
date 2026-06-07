@@ -56,7 +56,7 @@ def run_experiment(name: str, df: pd.DataFrame, target_col: str,
                  "speed_kmh", "speed_ratio", "congestion_percent", "tti", "travel_time_sec",
                  "anomaly_score", "emission_congestion_cross", "is_anomaly", "osrm_divergence", "pcu_index"]
     
-    weather_cols_all = ["temperature", "humidity", "wind_speed", "visibility_km", "pm2_5", "pm10", "co_level", "no2_level", "aqi"]
+    weather_cols_all = ["rain_mm", "temperature", "humidity", "wind_speed", "visibility_km"]
     
     traffic_cols = [c for c in df.columns if c not in drop_cols and c not in weather_cols_all and c != target_col]
     traffic_cols = [c for c in traffic_cols if df[c].dtype not in ['object', 'string']]

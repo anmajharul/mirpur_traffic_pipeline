@@ -2,6 +2,8 @@ name: Deep Learning Weekly Trainer
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: '0 0 */2 * *' # Run every 2 days at midnight
 
 jobs:
   train-dl:
@@ -39,6 +41,24 @@ jobs:
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
           MODEL_ARTIFACT_PATH: "model_mlp_weight.pt"
           MODEL_REMOTE_LATEST_PATH: "latest/model_mlp_weight.pt"
+        run: |
+          cd backend
+          python upload_model.py
+
+      - name: Run TCN-TFT Trainer
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: |
+          cd backend
+          python trainer_tcn_tft.py
+
+      - name: Upload TCN-TFT Model
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          MODEL_ARTIFACT_PATH: "model_tcn_weight.pt"
+          MODEL_REMOTE_LATEST_PATH: "latest/model_tcn_weight.pt"
         run: |
           cd backend
           python upload_model.py

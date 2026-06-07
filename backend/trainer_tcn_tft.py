@@ -559,7 +559,7 @@ def walk_forward_cv_tcn_tft():
                  "is_anomaly", "osrm_divergence", "pcu_index"]
     
     # Feature setup with Q1 Late Fusion separation
-    weather_cols_all = ["temperature", "humidity", "wind_speed", "visibility_km", "pm2_5", "pm10", "co_level", "no2_level", "aqi"]
+    weather_cols_all = ["rain_mm", "temperature", "humidity", "wind_speed", "visibility_km"]
     traffic_cols = [c for c in df.columns if c not in drop_cols and c not in weather_cols_all and c != "actual_eta_min"]
     weather_cols = [c for c in weather_cols_all if c in df.columns]
     
@@ -614,7 +614,7 @@ def walk_forward_cv_tcn_tft():
         test_df = df.iloc[train_end:test_end].copy()
 
         # LOCF + Median Imputation with CAUSAL ISOLATION (Grouped by direction)
-        ffill_cols = ["temperature", "humidity", "wind_speed", "visibility_km", "pm2_5", "pm10", "co_level", "no2_level", "aqi"]
+        ffill_cols = ["rain_mm", "temperature", "humidity", "wind_speed", "visibility_km"]
         ffill_cols = [c for c in ffill_cols if c in feature_cols]
         if ffill_cols:
             train_df[ffill_cols] = train_df.groupby("direction")[ffill_cols].ffill()
